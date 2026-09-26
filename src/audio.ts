@@ -3,7 +3,28 @@ import type { ClockSignal, ClockSignalKind } from './types'
 let context: AudioContext | null = null
 let unlocked = false
 
+const CHANNEL = 'wp-poolside-audio'
+const DEDUPE_MS = 700
+let channel: BroadcastChannel | null = null
+const lastPlayed: Partial<Record<ClockSignalKind, number>> = {}
+
 type AudioContextWindow = Window & { webkitAudioContext?: typeof AudioContext }
+
+function getChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === 'undefined') return null
+  if (!channel) {
+    try {
+      channel = new BroadcastChannel(CHANNEL)
+      channel.onmessage = (ev: MessageEvent) => {
+        const data = ev.data as { kind?: ClockSignalKind; t?: number } | null
+        if (data?.kind && typeof data.t === 'number') lastPlayed[data.kind] = data.t
+      }
+    } catch {
+      channel = null
+    }
+  }
+  return channel
+}
 
 function getContext(): AudioContext | null {
   if (context) return context
@@ -18,11 +39,28 @@ function getContext(): AudioContext | null {
   }
 }
 
+function shouldSkip(kind: ClockSignalKind): boolean {
+  getChannel()
+  const t = lastPlayed[kind]
+  return t != null && Date.now() - t < DEDUPE_MS
+}
+
+function markPlayed(kind: ClockSignalKind): void {
+  const t = Date.now()
+  lastPlayed[kind] = t
+  try {
+    getChannel()?.postMessage({ kind, t })
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Call from a user gesture before relying on a later clock transition. */
 export function unlockAudio(): void {
   const ctx = getContext()
   if (!ctx) return
   unlocked = true
+  getChannel()
   if (ctx.state === 'suspended') void ctx.resume().catch(() => { unlocked = false })
 }
 
@@ -83,7 +121,9 @@ export function playClockSound(kind: ClockSignalKind): void {
     void ctx.resume().then(() => playClockSound(kind)).catch(() => { /* autoplay may remain blocked */ })
     return
   }
+  if (shouldSkip(kind)) return
   try {
+    markPlayed(kind)
     if (kind === 'shot') playShotBuzz(ctx)
     else playPeriodSiren(ctx)
   } catch {
