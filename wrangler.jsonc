@@ -3,9 +3,17 @@
   "name": "water-polo-scorecard",
   "compatibility_date": "2026-08-27",
   "main": "worker.ts",
+  "workers_dev": true,
+  "preview_urls": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
-  }
+  },
+  "routes": [
+    {
+      "pattern": "board.fncwp.com",
+      "custom_domain": true
+    }
+  ]
 }

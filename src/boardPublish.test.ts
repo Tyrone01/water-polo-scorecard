@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { applyEvent } from './engine'
 import { demoMatch } from './demo'
-import { boardIdForMatch, boardUrl, buildBoardSnapshot } from './boardPublish'
+import { boardIdForMatch, boardUrl, buildBoardSnapshot, publicBoardUrl } from './boardPublish'
 
 describe('board snapshot', () => {
   it('maps a demo match score, period, and last events including SU', () => {
@@ -20,6 +20,8 @@ describe('board snapshot', () => {
     expect(snap.last.some((e) => e.code === 'SU')).toBe(false)
     expect(boardUrl('https://example.com/')).toBe('https://example.com/board/live')
     expect(boardUrl('https://example.com/', 'alstonville')).toBe('https://example.com/board/alstonville')
+    expect(boardUrl('https://board.fncwp.com', 'alstonville')).toBe('https://board.fncwp.com/alstonville')
+    expect(publicBoardUrl('ballina')).toBe('https://board.fncwp.com/ballina')
     expect(boardIdForMatch({ venue: 'Alstonville Pool' })).toBe('alstonville')
     expect(snap.breakKind).toBeNull()
     expect(snap.breakRunning).toBe(false)

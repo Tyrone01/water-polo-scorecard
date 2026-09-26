@@ -7,6 +7,17 @@ export const BOARD_RAIL_CODES: EventCode[] = [...GOAL_CODES, 'E', 'P', 'S']
 export const BOARD_ID_RE = /^[a-zA-Z0-9_-]{4,40}$/
 export const LIVE_BOARD_ID = 'live'
 
+
+/** Public TV host (custom domain). Short paths: /alstonville not /board/alstonville. */
+export const PUBLIC_BOARD_ORIGIN = 'https://board.fncwp.com'
+
+export const FNC_BOARD_VENUE_IDS = ['alstonville', 'ballina', 'lismore', 'mullumbimby'] as const
+export type FncBoardVenueId = (typeof FNC_BOARD_VENUE_IDS)[number]
+
+export function isFncBoardVenueId(id: string): id is FncBoardVenueId {
+  return (FNC_BOARD_VENUE_IDS as readonly string[]).includes(id)
+}
+
 export interface BoardLastEvent {
   time: string
   cap: string
@@ -85,10 +96,23 @@ export function boardIdForMatch(match: Pick<Match, 'venue'>): string {
   return LIVE_BOARD_ID
 }
 
+/**
+ * TV bookmark URL. On the public board host use short paths (/alstonville).
+ * Elsewhere (workers.dev / local) keep /board/{id}.
+ */
 export function boardUrl(origin: string, boardId: string = LIVE_BOARD_ID): string {
   const base = origin.replace(/\/$/, '')
   const id = BOARD_ID_RE.test(boardId) ? boardId : LIVE_BOARD_ID
+  const host = base.replace(/^https?:\/\//i, '').split('/')[0]?.toLowerCase() ?? ''
+  const shortPaths = host === 'board.fncwp.com'
+  if (shortPaths && isFncBoardVenueId(id)) return `${base}/${id}`
+  if (shortPaths && id === LIVE_BOARD_ID) return `${base}/`
   return `${base}/board/${id}`
+}
+
+/** Prefer the public board host for Setup / Open board links when the tablet is on workers.dev. */
+export function publicBoardUrl(boardId: string): string {
+  return boardUrl(PUBLIC_BOARD_ORIGIN, boardId)
 }
 
 export function buildBoardSnapshot(match: Match, now = Date.now()): BoardSnapshot {
