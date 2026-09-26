@@ -131,9 +131,14 @@ function flush(): void {
   })
 }
 
-/** Debounced ~400ms POST of a compact snapshot for the spectator board. */
+/** Debounced ~400ms POST; clock signals (shot / period / Siren) flush immediately. */
 export function publishBoard(match: Match): void {
   pending = match
+  if (match.clockSignal) {
+    if (timer != null) clearTimeout(timer)
+    timer = setTimeout(flush, 0)
+    return
+  }
   if (timer != null) return
   timer = setTimeout(flush, 400)
 }

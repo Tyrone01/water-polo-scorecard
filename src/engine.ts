@@ -581,6 +581,11 @@ function newClockSignal(kind: ClockSignal['kind']): ClockSignal {
   return { id: uid(), kind }
 }
 
+/** Manual Siren: same horn as quarter end, unique id so the board replays it. */
+export function signalSiren(match: Match): Match {
+  return { ...match, clockSignal: newClockSignal('period') }
+}
+
 function clearBreakFields(match: Match): Match {
   return {
     ...match,

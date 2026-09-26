@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { demoMatch } from './demo'
-import { endQuarter, tickClock } from './engine'
+import { endQuarter, signalSiren, tickClock } from './engine'
 import type { Match } from './types'
 
 function live(partial: Partial<Match> = {}): Match {
@@ -58,5 +58,13 @@ describe('poolside clockSignal', () => {
     const id = a.clockSignal?.id
     const b = tickClock({ ...a, clockRunning: true }, 0.25)
     expect(b.clockSignal?.id).toBe(id)
+  })
+
+  it('manual Siren emits a fresh period signal for the board', () => {
+    const m = live({ clockSignal: { id: 'old', kind: 'period' } })
+    const next = signalSiren(m)
+    expect(next.clockSignal?.kind).toBe('period')
+    expect(next.clockSignal?.id).toBeTruthy()
+    expect(next.clockSignal?.id).not.toBe('old')
   })
 })

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { playClockSignal, playClockSound, unlockAudio } from '../audio'
+import { playClockSignal, unlockAudio } from '../audio'
 import { autoSaveMatchToDrive, retrySaveMatchToDrive } from '../driveClient'
 import {
   applyEvent,
@@ -16,6 +16,7 @@ import {
   strikeOff,
   timeoutAllowance,
   unstrike,
+  signalSiren,
   tickClock,
 } from '../engine'
 import { boardUrl } from '../boardPublish'
@@ -332,7 +333,7 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
                 title="Play quarter-end siren"
                 onClick={() => {
                   unlockAudio()
-                  playClockSound('period')
+                  setMatch(signalSiren(match))
                 }}
               >
                 Siren
