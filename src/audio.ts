@@ -64,54 +64,47 @@ export function unlockAudio(): void {
   if (ctx.state === 'suspended') void ctx.resume().catch(() => { unlocked = false })
 }
 
-function blip(
-  ctx: AudioContext,
-  freq: number,
-  start: number,
-  duration: number,
-  type: OscillatorType,
-  gainLevel: number,
-): void {
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  osc.type = type
-  osc.frequency.setValueAtTime(freq, start)
-  osc.connect(gain)
-  gain.connect(ctx.destination)
-  gain.gain.setValueAtTime(0.0001, start)
-  gain.gain.exponentialRampToValueAtTime(gainLevel, start + 0.008)
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration)
-  osc.start(start)
-  osc.stop(start + duration + 0.02)
-}
 
-/** Short harsh two-tone buzz for shot-clock expiry. */
-function playShotBuzz(ctx: AudioContext): void {
+/**
+ * Poolside electronic horn (water polo scoreboard style):
+ * loud, flat dual-tone blast — not a police-style wail.
+ * Used for Siren, shot-clock zero, and quarter end.
+ */
+function playPoolHorn(ctx: AudioContext): void {
   const now = ctx.currentTime
-  blip(ctx, 880, now, 0.12, 'square', 0.24)
-  blip(ctx, 720, now + 0.15, 0.14, 'square', 0.22)
-}
+  const duration = 1.15
+  const master = ctx.createGain()
+  master.connect(ctx.destination)
+  master.gain.setValueAtTime(0.0001, now)
+  master.gain.exponentialRampToValueAtTime(0.42, now + 0.012)
+  master.gain.setValueAtTime(0.42, now + duration - 0.06)
+  master.gain.exponentialRampToValueAtTime(0.0001, now + duration)
 
-/** Longer wailing siren for quarter/game-clock expiry and manual Siren. */
-function playPeriodSiren(ctx: AudioContext): void {
-  const now = ctx.currentTime
-  const duration = 1.4
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  osc.type = 'sawtooth'
-  osc.frequency.setValueAtTime(660, now)
-  osc.frequency.linearRampToValueAtTime(390, now + 0.35)
-  osc.frequency.linearRampToValueAtTime(660, now + 0.7)
-  osc.frequency.linearRampToValueAtTime(390, now + 1.05)
-  osc.frequency.linearRampToValueAtTime(520, now + 1.35)
-  osc.connect(gain)
-  gain.connect(ctx.destination)
-  gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(0.28, now + 0.015)
-  gain.gain.setValueAtTime(0.28, now + duration - 0.08)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration)
-  osc.start(now)
-  osc.stop(now + duration + 0.03)
+  // Dual square tones ~major-ish stack, steady pitch (classic electronic horn)
+  for (const [freq, level] of [
+    [415, 0.55],
+    [622, 0.45],
+  ] as const) {
+    const osc = ctx.createOscillator()
+    const g = ctx.createGain()
+    osc.type = 'square'
+    osc.frequency.setValueAtTime(freq, now)
+    g.gain.setValueAtTime(level, now)
+    osc.connect(g)
+    g.connect(master)
+    osc.start(now)
+    osc.stop(now + duration + 0.02)
+  }
+  // Light saw underlay for buzz / "air" of a board horn
+  const saw = ctx.createOscillator()
+  const sg = ctx.createGain()
+  saw.type = 'sawtooth'
+  saw.frequency.setValueAtTime(207, now)
+  sg.gain.setValueAtTime(0.18, now)
+  saw.connect(sg)
+  sg.connect(master)
+  saw.start(now)
+  saw.stop(now + duration + 0.02)
 }
 
 export function playClockSound(kind: ClockSignalKind): void {
@@ -121,11 +114,14 @@ export function playClockSound(kind: ClockSignalKind): void {
     void ctx.resume().then(() => playClockSound(kind)).catch(() => { /* autoplay may remain blocked */ })
     return
   }
-  if (shouldSkip(kind)) return
+  // Shot, period, and manual Siren share one horn.
+  // Dedupe by 'period' so shot+period in the same moment only blast once.
+  const dedupeKind: ClockSignalKind = 'period'
+  if (shouldSkip(dedupeKind) || shouldSkip(kind)) return
   try {
     markPlayed(kind)
-    if (kind === 'shot') playShotBuzz(ctx)
-    else playPeriodSiren(ctx)
+    markPlayed(dedupeKind)
+    playPoolHorn(ctx)
   } catch {
     /* Audio is an enhancement; never interrupt scoring. */
   }

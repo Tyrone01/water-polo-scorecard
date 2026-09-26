@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { playClockSignal, playClockSound, unlockAudio } from '../audio'
-import { exportEventLog, exportPlayerSummary } from '../csv'
 import { autoSaveMatchToDrive, retrySaveMatchToDrive } from '../driveClient'
 import {
   applyEvent,
   deleteEvent,
   deriveLiveExclusions,
   editEvent,
-  endQuarter,
   formatTime,
   parseTimeInput,
   runningScoreFromEvents,
@@ -17,13 +15,11 @@ import {
   setPresent,
   strikeOff,
   timeoutAllowance,
-  undoLast,
   unstrike,
   tickClock,
 } from '../engine'
 import { boardUrl } from '../boardPublish'
 import { LEGEND, TEST_NUKE_GAME, type EventCode, type LogEvent, type Match, type PeriodId, type Player, type Side } from '../types'
-import { EventLog } from './EventLog'
 import { Tip } from './Tip'
 import { TeamPanel } from './TeamPanel'
 
@@ -35,15 +31,12 @@ interface Props {
   onVenues?: () => void
 }
 
-export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: Props) {
+export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _onVenues }: Props) {
   const [side, setSide] = useState<Side | null>(null)
   const [player, setPlayer] = useState<Player | null>(null)
   const [timeStr, setTimeStr] = useState(formatTime(match.clockRemainingSec))
   const [flash, setFlash] = useState<string[]>([])
   const [edit, setEdit] = useState<LogEvent | null>(null)
-  const [showComments, setShowComments] = useState(false)
-  const [showLog, setShowLog] = useState(false)
-  const [recon, setRecon] = useState<string | null>(null)
   const lastPlayedSignal = useRef(match.clockSignal?.id ?? null)
 
   useEffect(() => {
@@ -261,33 +254,6 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
               </div>
             </div>
             <div className="tools">
-              <button className="btn" onClick={() => setMatch(undoLast(match))} disabled={!match.events.length && !match.lastStrike}>
-                Undo
-              </button>
-              <button
-                className="btn"
-                onClick={() => {
-                  unlockAudio()
-                  const { match: next, check } = endQuarter(match)
-                  setMatch(next)
-                  setRecon(
-                    check.ok
-                      ? `End of period OK (${check.logGoals.white}–${check.logGoals.blue}).`
-                      : `Mismatch: ${check.issues.join('; ')}`,
-                  )
-                }}
-              >
-                End Q
-              </button>
-              <button className="btn" onClick={() => setShowLog((v) => !v)}>
-                {showLog ? 'Hide log' : 'Log'}
-              </button>
-              <button className="btn" onClick={() => exportEventLog(match)}>CSV</button>
-              <button className="btn" onClick={() => exportPlayerSummary(match)}>Summary</button>
-              <button className="btn" onClick={() => setShowComments(true)}>Notes</button>
-              {onVenues ? (
-                <button className="btn" onClick={onVenues}>Venues</button>
-              ) : null}
               <button className="btn" onClick={onSetup}>Setup</button>
               {TEST_NUKE_GAME ? (
                 <button
@@ -302,8 +268,6 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
               ) : null}
             </div>
           </div>
-          {recon ? <div className="footer-meta">{recon}</div> : null}
-
           <div className="teams-duo">
             <TeamPanel
               side="white"
@@ -347,11 +311,6 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
             />
           </div>
 
-          {showLog ? (
-            <div className="scoring-log">
-              <EventLog events={match.events} onEdit={setEdit} />
-            </div>
-          ) : null}
         </div>
 
         <aside className="scoring-rail">
@@ -517,22 +476,6 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
         />
       ) : null}
 
-      {showComments ? (
-        <div className="modal-bg" onClick={() => setShowComments(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Comments / final result</h3>
-            <label className="field">
-              Final result
-              <input value={match.finalResult} onChange={(e) => setMatch({ ...match, finalResult: e.target.value })} />
-            </label>
-            <label className="field">
-              Comments
-              <textarea value={match.comments} onChange={(e) => setMatch({ ...match, comments: e.target.value })} />
-            </label>
-            <button className="btn primary" onClick={() => setShowComments(false)}>Done</button>
-          </div>
-        </div>
-      ) : null}
     </div>
   )
 }
