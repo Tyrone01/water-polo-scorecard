@@ -1039,25 +1039,6 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   padding: 6px 12px;
 }
 .siren-btn:hover { filter: brightness(1.1); }
-.board-sound-arm {
-  position: fixed;
-  top: 12px;
-  right: 12px;
-  z-index: 20;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid var(--fnc-gold, #c9a227);
-  background: rgba(5, 25, 27, 0.92);
-  color: var(--fnc-gold, #c9a227);
-  font-weight: 700;
-  cursor: pointer;
-}
-.board-sound-hint {
-  margin-top: 12px;
-  opacity: 0.75;
-  font-size: 14px;
-}
-
 .rail-game-actions { justify-content: flex-start; margin-top: 6px; }
 .rail-shot-clock {
   flex: 1;

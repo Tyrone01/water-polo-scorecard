@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { playClockSignal, unlockAudio } from '../audio'
+import { playClockSignal, playClockSound, unlockAudio } from '../audio'
 import { formatTime } from '../engine'
 import type { BoardFoulSummary, BoardLastEvent, BoardRosterPlayer, BoardSnapshot } from '../boardPublish'
 
@@ -67,58 +67,144 @@ function LineupRail({
   )
 }
 
+/** True when the table clearly started a new shot-clock epoch (Fresh / Short / goal reset). */
+function isShotClockReset(prev: BoardSnapshot | null, next: BoardSnapshot): boolean {
+  if (next.shotClockRunning && next.shotClockRemainingSec >= 2) {
+    if (!prev) return true
+    // Restarted after stop, or remaining jumped up
+    if (!prev.shotClockRunning) return true
+    if (next.shotClockRemainingSec > prev.shotClockRemainingSec + 0.5) return true
+  }
+  if (prev && next.updatedAt > prev.updatedAt && next.shotClockRemainingSec > prev.shotClockRemainingSec + 1) {
+    return true
+  }
+  return false
+}
+
+function isPeriodClockReset(prev: BoardSnapshot | null, next: BoardSnapshot): boolean {
+  if (next.clockRunning && next.clockRemainingSec >= 5) {
+    if (!prev) return true
+    if (!prev.clockRunning) return true
+    if (next.clockRemainingSec > prev.clockRemainingSec + 1) return true
+  }
+  if (prev && next.updatedAt > prev.updatedAt && next.clockRemainingSec > prev.clockRemainingSec + 1) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Whole-second shot display matching the live sheet (Math.ceil), but never
+ * jumps upward while the same countdown is running — that was the TV glitch
+ * when a late poll arrived with a slightly higher remaining.
+ */
+function wholeShotSeconds(sec: number): number {
+  return Math.max(0, Math.ceil(sec - 1e-9))
+}
+
 export function SpectatorBoard({ id }: Props) {
   const [snap, setSnap] = useState<BoardSnapshot | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const snapRef = useRef<BoardSnapshot | null>(null)
+
+  const shotExpiredLocal = useRef(false)
+  const periodExpiredLocal = useRef(false)
+  const localShotHornPlayed = useRef(false)
+  const localPeriodHornPlayed = useRef(false)
+  /** Monotonic whole-second shot while a countdown is in progress. */
+  const shotFloorRef = useRef<number | null>(null)
+  const firstSnapshot = useRef(true)
+  const lastPlayedSignal = useRef<string | null>(null)
 
   useEffect(() => {
     document.title = 'FNC Water Polo Scoreboard'
   }, [])
 
+  // TV board: no prompts. Try unlock on load; also on any silent remote/key/pointer.
+  useEffect(() => {
+    unlockAudio()
+    const arm = () => unlockAudio()
+    window.addEventListener('pointerdown', arm)
+    window.addEventListener('keydown', arm)
+    return () => {
+      window.removeEventListener('pointerdown', arm)
+      window.removeEventListener('keydown', arm)
+    }
+  }, [])
+
   useEffect(() => {
     let alive = true
+    let timeoutId = 0
+
     async function poll() {
       try {
         const res = await fetch(`/api/board/${encodeURIComponent(id)}`, { cache: 'no-store' })
         if (!alive) return
         if (res.ok) {
           const data = (await res.json()) as BoardSnapshot
-          setSnap(data)
+          const prev = snapRef.current
+          if (!prev || data.updatedAt !== prev.updatedAt) {
+            if (isShotClockReset(prev, data)) {
+              shotExpiredLocal.current = false
+              localShotHornPlayed.current = false
+              shotFloorRef.current = null
+            }
+            if (isPeriodClockReset(prev, data)) {
+              periodExpiredLocal.current = false
+              localPeriodHornPlayed.current = false
+            }
+            snapRef.current = data
+            setSnap(data)
+            setNow(Date.now())
+          }
         }
       } catch {
         /* keep last snapshot / waiting */
       }
+      if (!alive) return
+      const s = snapRef.current
+      const running = Boolean(s?.clockRunning || s?.shotClockRunning || s?.breakRunning)
+      // Fast while clocks run so the TV stays close to the table tablet
+      timeoutId = window.setTimeout(() => void poll(), running ? 200 : 800)
     }
+
     void poll()
-    const t = window.setInterval(() => void poll(), 750)
     return () => {
       alive = false
-      window.clearInterval(t)
+      window.clearTimeout(timeoutId)
     }
   }, [id])
 
   useEffect(() => {
     if (!snap?.clockRunning && !snap?.shotClockRunning && !snap?.breakRunning) return
-    const t = window.setInterval(() => setNow(Date.now()), 200)
+    const t = window.setInterval(() => setNow(Date.now()), 100)
     return () => window.clearInterval(t)
   }, [snap?.clockRunning, snap?.shotClockRunning, snap?.breakRunning])
 
-  const [soundArmed, setSoundArmed] = useState(false)
-  const firstSnapshot = useRef(true)
-  const lastPlayedSignal = useRef<string | null>(null)
-
+  // Predictive horn at local zero (once). Server clockSignal is backup only.
   useEffect(() => {
-    const arm = () => {
-      unlockAudio()
-      setSoundArmed(true)
+    if (!snap) return
+    const elapsed = Math.max(0, (now - snap.updatedAt) / 1000)
+
+    const periodAtZero = snap.clockRunning && snap.clockRemainingSec - elapsed <= 0
+    const shotAtZero = snap.shotClockRunning && snap.shotClockRemainingSec - elapsed <= 0
+
+    if (periodAtZero) {
+      periodExpiredLocal.current = true
+      shotExpiredLocal.current = true
+      if (!localPeriodHornPlayed.current) {
+        localPeriodHornPlayed.current = true
+        localShotHornPlayed.current = true
+        playClockSound('period')
+      }
+    } else if (shotAtZero) {
+      shotExpiredLocal.current = true
+      if (!localShotHornPlayed.current) {
+        localShotHornPlayed.current = true
+        playClockSound('shot')
+      }
     }
-    window.addEventListener('pointerdown', arm, { once: true })
-    window.addEventListener('keydown', arm, { once: true })
-    return () => {
-      window.removeEventListener('pointerdown', arm)
-      window.removeEventListener('keydown', arm)
-    }
-  }, [])
+  }, [snap, now])
 
   useEffect(() => {
     if (!snap) return
@@ -130,28 +216,61 @@ export function SpectatorBoard({ id }: Props) {
     }
     if (!signal || signal.id === lastPlayedSignal.current) return
     lastPlayedSignal.current = signal.id
-    if (soundArmed) playClockSignal(signal)
-  }, [snap, soundArmed])
+    if (signal.kind === 'shot' && localShotHornPlayed.current) return
+    if (signal.kind === 'period' && localPeriodHornPlayed.current) return
+    playClockSignal(signal)
+  }, [snap])
 
   if (!snap) {
     return (
       <div className="board board-wait">
         <p>Waiting for table…</p>
-        {!soundArmed ? <p className="board-sound-hint">Tap anywhere to enable poolside sound</p> : null}
       </div>
     )
   }
 
   const elapsed = Math.max(0, (now - snap.updatedAt) / 1000)
   const inBreak = Boolean(snap.breakKind)
-  const clockSec = snap.clockRunning ? Math.max(0, snap.clockRemainingSec - elapsed) : snap.clockRemainingSec
+
+  let clockSec = snap.clockRunning ? Math.max(0, snap.clockRemainingSec - elapsed) : snap.clockRemainingSec
+  if (periodExpiredLocal.current || (snap.clockRunning && clockSec <= 0)) {
+    periodExpiredLocal.current = true
+    shotExpiredLocal.current = true
+    clockSec = 0
+  }
+
   const breakSec = snap.breakRunning
     ? Math.max(0, (snap.breakRemainingSec ?? 0) - elapsed)
     : (snap.breakRemainingSec ?? 0)
-  const shotSec = snap.shotClockRunning
+
+  let shotSec = snap.shotClockRunning
     ? Math.max(0, snap.shotClockRemainingSec - elapsed)
     : snap.shotClockRemainingSec
-  const shot = Math.max(0, Math.ceil(shotSec))
+  if (shotExpiredLocal.current || (snap.shotClockRunning && shotSec <= 0)) {
+    shotExpiredLocal.current = true
+    shotSec = 0
+  }
+
+  let shot = wholeShotSeconds(shotSec)
+  if (shotExpiredLocal.current) {
+    shot = 0
+    shotFloorRef.current = 0
+  } else if (snap.shotClockRunning) {
+    const floor = shotFloorRef.current
+    if (floor == null) {
+      shotFloorRef.current = shot
+    } else if (shot < floor) {
+      shotFloorRef.current = shot
+    } else {
+      // Never jump back up mid-countdown (late / overlapping polls)
+      shot = floor
+    }
+  } else {
+    // Stopped with time left (Fresh/Short pending start) — show snap value, clear floor
+    shotFloorRef.current = null
+    shot = wholeShotSeconds(snap.shotClockRemainingSec)
+  }
+
   const whiteEvents = snap.last.filter((e) => e.side === 'white')
   const blueEvents = snap.last.filter((e) => e.side === 'blue')
   const whiteFouls = snap.whiteFouls ?? []
@@ -159,11 +278,6 @@ export function SpectatorBoard({ id }: Props) {
 
   return (
     <div className="board">
-      {!soundArmed ? (
-        <button type="button" className="board-sound-arm" onClick={() => { unlockAudio(); setSoundArmed(true) }}>
-          Tap for sound
-        </button>
-      ) : null}
       <div className="board-names">
         <div className={`board-name white${snap.possession === 'white' ? ' has-ball' : ''}`}>
           <span className="board-side">White</span>

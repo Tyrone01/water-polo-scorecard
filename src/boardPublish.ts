@@ -131,10 +131,17 @@ function flush(): void {
   })
 }
 
-/** Debounced ~400ms POST; clock signals (shot / period / Siren) flush immediately. */
+function clocksNearZero(match: Match): boolean {
+  const shotRem = match.shotClockRemainingSec ?? match.shotClockSec
+  if (match.shotClockRunning && shotRem <= 1) return true
+  if (match.clockRunning && match.clockRemainingSec <= 1) return true
+  return false
+}
+
+/** Debounced ~400ms POST; clock signals and near-zero clocks flush immediately. */
 export function publishBoard(match: Match): void {
   pending = match
-  if (match.clockSignal) {
+  if (match.clockSignal || clocksNearZero(match)) {
     if (timer != null) clearTimeout(timer)
     timer = setTimeout(flush, 0)
     return
