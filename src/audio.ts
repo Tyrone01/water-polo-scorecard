@@ -4,7 +4,7 @@ let context: AudioContext | null = null
 let unlocked = false
 
 const CHANNEL = 'wp-poolside-audio'
-const DEDUPE_MS = 700
+const DEDUPE_MS = 1200
 let channel: BroadcastChannel | null = null
 const lastPlayed: Partial<Record<ClockSignalKind, number>> = {}
 
@@ -71,7 +71,7 @@ export function unlockAudio(): void {
  */
 function playPoolHorn(ctx: AudioContext): void {
   const now = ctx.currentTime
-  const burst = 0.14
+  const burst = 0.28
   const gap = 0.11
   const total = burst * 3 + gap * 2 + 0.04
 
