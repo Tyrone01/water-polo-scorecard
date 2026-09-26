@@ -310,12 +310,30 @@ function matchAnchors(html: string): Anchor[] {
   return out
 }
 
-/** /club/games/team/{comp}/{id} → /club/teams/{id} (public team list). */
+/**
+ * /club/games/team/{comp}/{id} → /club/games/team-stats/{comp}/{id}
+ * Team-stats pages expose public rosters even when /teams/{id} is members-only (FNC Socials).
+ */
 export function rosterUrlFromTeamLink(url: string): string {
-  const m = url.match(/^(https:\/\/[^/]+)(\/[^/]+)?\/games\/team\/\d+\/(\d+)/i)
+  const m = url.match(/^(https:\/\/[^/]+)(\/[^/]+)?\/games\/team\/(\d+)\/(\d+)/i)
   if (!m) return url
   const slug = m[2] && !/^\/games$/i.test(m[2]) ? m[2] : ''
-  return `${m[1]}${slug}/teams/${m[3]}`
+  return `${m[1]}${slug}/games/team-stats/${m[3]}/${m[4]}`
+}
+
+/** Fallback public team list URL (/teams/{id}) when team-stats is empty (e.g. AJWP). */
+export function teamsPageUrlFromTeamLink(url: string): string {
+  const stats = url.match(/^(https:\/\/[^/]+)(\/[^/]+)?\/games\/team-stats\/\d+\/(\d+)/i)
+  if (stats) {
+    const slug = stats[2] && !/^\/games$/i.test(stats[2]) ? stats[2] : ''
+    return `${stats[1]}${slug}/teams/${stats[3]}`
+  }
+  const team = url.match(/^(https:\/\/[^/]+)(\/[^/]+)?\/games\/team\/\d+\/(\d+)/i)
+  if (team) {
+    const slug = team[2] && !/^\/games$/i.test(team[2]) ? team[2] : ''
+    return `${team[1]}${slug}/teams/${team[3]}`
+  }
+  return url
 }
 
 function labelledValue(html: string, label: string): string {

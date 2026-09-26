@@ -19,7 +19,7 @@ import {
   signalSiren,
   tickClock,
 } from '../engine'
-import { boardUrl } from '../boardPublish'
+import { boardIdForMatch, boardUrl } from '../boardPublish'
 import { LEGEND, TEST_NUKE_GAME, type EventCode, type LogEvent, type Match, type PeriodId, type Player, type Side } from '../types'
 import { Tip } from './Tip'
 import { TeamPanel } from './TeamPanel'
@@ -453,7 +453,7 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
             <p className="muted shot-hint">G / EG / PG auto-reset shot clock to {match.shotClockSec}s and stop it.</p>
             <div className="rail-board-link">
               <span className="source-label">Board</span>
-              <a href={boardUrl(window.location.origin)} target="_blank" rel="noreferrer">
+              <a href={boardUrl(window.location.origin, boardIdForMatch(match))} target="_blank" rel="noreferrer">
                 Open board
               </a>
             </div>

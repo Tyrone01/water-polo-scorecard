@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { gamesOnDate, inferIsoDate, pickRelevantDate } from './dates'
-import { htmlLooksLikeRevSport, isRevSportUrl, parsePlayerName, parseRevSportHtml } from './parser'
+import { htmlLooksLikeRevSport, isRevSportUrl, parsePlayerName, parseRevSportHtml, rosterUrlFromTeamLink, teamsPageUrlFromTeamLink } from './parser'
 
 const fixtures = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../fixtures')
 
@@ -130,7 +130,7 @@ describe('AJWP fixtures and team list', () => {
     expect(result.date).toBe('2025-10-17')
     expect(result.startTime).toBe('19:00')
     expect(result.referees).toMatch(/Hunter Collins/i)
-    expect(result.teamPageUrls?.[0]).toMatch(/\/teams\/379405/)
+    expect(result.teamPageUrls?.[0]).toMatch(/\/games\/team-stats\/\d+\/379405/)
     expect(result.teams.every((t) => t.players.length === 0)).toBe(true)
   })
 
@@ -208,6 +208,42 @@ describe('custom club domain hrefs', () => {
     expect(result.roundUrls?.some((u) => /fncwaterpolo\.org\.au\/games\/23702\/3790\/round\/1/.test(u))).toBe(true)
     expect(result.roundUrls?.some((u) => /fncwaterpolo\.org\.au\/games\/23702\/3790\/round\/2/.test(u))).toBe(true)
     expect(result.games?.[0].detailsUrl).toMatch(/fncwaterpolo\.org\.au\/game\/999/)
-    expect(result.games?.[0].homeTeamUrl).toMatch(/\/teams\/111/)
+    expect(result.games?.[0].homeTeamUrl).toMatch(/\/games\/team-stats\/23702\/111/)
+  })
+})
+
+describe('FNC Socials team-stats rosters', () => {
+  const files: [string, string, number][] = [
+    ['fnc-team-stats-social-mems.html', 'Social mems', 7],
+    ['fnc-team-stats-social-ladies1.html', 'Social ladies 1', 6],
+    ['fnc-team-stats-social-ladies2.html', 'Social ladies 2', 6],
+    ['fnc-team-stats-social-mens2.html', 'Social mens 2', 7],
+  ]
+
+  it('maps games/team links to public team-stats roster URLs', () => {
+    expect(rosterUrlFromTeamLink('https://www.fncwaterpolo.org.au/games/team/27655/443855')).toBe(
+      'https://www.fncwaterpolo.org.au/games/team-stats/27655/443855',
+    )
+    expect(teamsPageUrlFromTeamLink('https://www.fncwaterpolo.org.au/games/team-stats/27655/443855')).toBe(
+      'https://www.fncwaterpolo.org.au/teams/443855',
+    )
+  })
+
+  for (const [file, label, count] of files) {
+    it(`parses ${count} players for ${label}`, () => {
+      const html = readFileSync(path.join(fixtures, file), 'utf8')
+      const result = parseRevSportHtml(html, '2026-09-26', `https://www.fncwaterpolo.org.au/games/team-stats/27655/x`)
+      expect(result.teams[0]?.players.length).toBe(count)
+      expect(result.teams[0]?.players.every((p) => p.name.length > 1 && p.cap)).toBe(true)
+    })
+  }
+
+  it('totals 26 players across the four Social teams', () => {
+    let total = 0
+    for (const [file] of files) {
+      const html = readFileSync(path.join(fixtures, file), 'utf8')
+      total += parseRevSportHtml(html).teams[0]?.players.length || 0
+    }
+    expect(total).toBe(26)
   })
 })

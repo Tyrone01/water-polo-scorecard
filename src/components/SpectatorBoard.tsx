@@ -113,6 +113,8 @@ export function SpectatorBoard({ id }: Props) {
   const localPeriodHornPlayed = useRef(false)
   /** Monotonic whole-second shot while a countdown is in progress. */
   const shotFloorRef = useRef<number | null>(null)
+  /** Monotonic whole-second game/break clock (same anti-flicker as shot). */
+  const clockFloorRef = useRef<number | null>(null)
   const firstSnapshot = useRef(true)
   const lastPlayedSignal = useRef<string | null>(null)
 
@@ -143,7 +145,8 @@ export function SpectatorBoard({ id }: Props) {
         if (res.ok) {
           const data = (await res.json()) as BoardSnapshot
           const prev = snapRef.current
-          if (!prev || data.updatedAt !== prev.updatedAt) {
+          // Ignore stale / out-of-order polls — they jump clocks upward on the TV.
+          if (!prev || data.updatedAt > prev.updatedAt) {
             if (isShotClockReset(prev, data)) {
               shotExpiredLocal.current = false
               localShotHornPlayed.current = false
@@ -152,6 +155,7 @@ export function SpectatorBoard({ id }: Props) {
             if (isPeriodClockReset(prev, data)) {
               periodExpiredLocal.current = false
               localPeriodHornPlayed.current = false
+              clockFloorRef.current = null
             }
             snapRef.current = data
             setSnap(data)
@@ -239,9 +243,29 @@ export function SpectatorBoard({ id }: Props) {
     clockSec = 0
   }
 
-  const breakSec = snap.breakRunning
+  let breakSec = snap.breakRunning
     ? Math.max(0, (snap.breakRemainingSec ?? 0) - elapsed)
     : (snap.breakRemainingSec ?? 0)
+
+  // Monotonic whole-second game/break display (ceil, never jump up mid-countdown).
+  const clockRunningDisplay = inBreak ? snap.breakRunning : snap.clockRunning
+  let clockWhole = Math.max(0, Math.ceil((inBreak ? breakSec : clockSec) - 1e-9))
+  if (periodExpiredLocal.current && !inBreak) {
+    clockWhole = 0
+    clockFloorRef.current = 0
+  } else if (clockRunningDisplay) {
+    const floor = clockFloorRef.current
+    if (floor == null || clockWhole < floor) {
+      clockFloorRef.current = clockWhole
+    } else {
+      clockWhole = floor
+    }
+  } else {
+    clockFloorRef.current = null
+    clockWhole = Math.max(0, Math.ceil((inBreak ? (snap.breakRemainingSec ?? 0) : snap.clockRemainingSec) - 1e-9))
+  }
+  if (inBreak) breakSec = clockWhole
+  else clockSec = clockWhole
 
   let shotSec = snap.shotClockRunning
     ? Math.max(0, snap.shotClockRemainingSec - elapsed)

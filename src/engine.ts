@@ -42,7 +42,8 @@ export function quarterLengthSec(match: Match): number {
 }
 
 export function formatTime(sec: number): string {
-  const s = Math.max(0, Math.round(sec))
+  // ceil so remaining time never flickers upward around .5 boundaries (Math.round)
+  const s = Math.max(0, Math.ceil(sec - 1e-9))
   const m = Math.floor(s / 60)
   const r = s % 60
   return `${m}:${r.toString().padStart(2, '0')}`

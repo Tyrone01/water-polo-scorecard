@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { demoMatch } from '../demo'
 import { parseDriveFolderId } from '../driveFolder'
-import { boardUrl, publishBoard } from '../boardPublish'
+import { boardIdForMatch, boardUrl, publishBoard } from '../boardPublish'
 import { emptyPlayer, periodMinutes, quarterLengthSec, setupIssues, uid } from '../engine'
 import { connectGoogle, googleSessionEmail, hasGoogleSession } from '../googleAuth'
 import { importMetaPatch, importedTeamToTeam } from '../importApply'
@@ -704,14 +704,14 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
 
       <div className="scoreboard-url">
         <span className="muted">Scoreboard URL (fixed — leave this on the TV)</span>
-        <a href={boardUrl(origin)} target="_blank" rel="noreferrer">
-          {boardUrl(origin)}
+        <a href={boardUrl(origin, boardIdForMatch(match))} target="_blank" rel="noreferrer">
+          {boardUrl(origin, boardIdForMatch(match))}
         </a>
         <button
           type="button"
           className="btn small"
           onClick={() => {
-            void navigator.clipboard?.writeText(boardUrl(origin))
+            void navigator.clipboard?.writeText(boardUrl(origin, boardIdForMatch(match)))
           }}
         >
           Copy

@@ -69,9 +69,26 @@ function foulSummaries(team: Team): BoardFoulSummary[] {
   return rows
 }
 
-export function boardUrl(origin: string): string {
+function venueSlugForBoard(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/aquatic centre|indoor pool|pool|leisure centre/gi, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 48) || 'venue'
+}
+
+/** Board id from match.venue (alstonville, ballina, …); falls back to live. */
+export function boardIdForMatch(match: Pick<Match, 'venue'>): string {
+  const slug = venueSlugForBoard(match.venue || '')
+  if (slug && BOARD_ID_RE.test(slug)) return slug
+  return LIVE_BOARD_ID
+}
+
+export function boardUrl(origin: string, boardId: string = LIVE_BOARD_ID): string {
   const base = origin.replace(/\/$/, '')
-  return `${base}/board`
+  const id = BOARD_ID_RE.test(boardId) ? boardId : LIVE_BOARD_ID
+  return `${base}/board/${id}`
 }
 
 export function buildBoardSnapshot(match: Match, now = Date.now()): BoardSnapshot {
@@ -122,7 +139,8 @@ function flush(): void {
   pending = null
   if (!match) return
   const body = JSON.stringify(buildBoardSnapshot(match))
-  void fetch(`/api/board/${LIVE_BOARD_ID}`, {
+  const id = boardIdForMatch(match)
+  void fetch(`/api/board/${encodeURIComponent(id)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,

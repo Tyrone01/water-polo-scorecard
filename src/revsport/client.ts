@@ -3,6 +3,7 @@ import {
   isRevSportUrl,
   parsePastedTable,
   parseRevSportHtml,
+  teamsPageUrlFromTeamLink,
   type ImportedGame,
   type ImportedRound,
   type ImportResult,
@@ -36,22 +37,54 @@ async function fetchHtml(url: string): Promise<{ html?: string; fetchError?: str
   }
 }
 
+async function playersFromRosterHtml(html: string): Promise<{ name: string; players: ImportResult['teams'][0]['players'] }> {
+  const page = parseRevSportHtml(html)
+  return { name: page.teams[0]?.name || '', players: page.teams[0]?.players || [] }
+}
+
 async function hydrateRosters(parsed: ImportResult): Promise<ImportResult> {
   const urls = parsed.teamPageUrls || []
   if (!urls.length) return parsed
   const empty = !parsed.teams.length || parsed.teams.every((t) => t.players.length === 0)
   if (!empty) return parsed
   const pages = await Promise.all(urls.map((u) => fetchHtml(u)))
-  const teams = parsed.teams.map((t, i) => {
-    const html = pages[i]?.html || ''
-    const page = html ? parseRevSportHtml(html) : { teams: [] as ImportResult['teams'] }
-    const players = page.teams[0]?.players || []
-    const name = t.name || page.teams[0]?.name || 'Team'
-    return { name, players }
-  })
-  const missing = pages.filter((p) => p.fetchError)
+  const teams = []
   const warnings = [...parsed.warnings]
-  if (missing.length) {
+  let fetchFailures = 0
+  for (let i = 0; i < parsed.teams.length; i++) {
+    const t = parsed.teams[i]
+    const primary = pages[i]
+    let name = t.name
+    let players: ImportResult['teams'][0]['players'] = []
+    if (primary?.html) {
+      const parsedPage = await playersFromRosterHtml(primary.html)
+      players = parsedPage.players
+      name = t.name || parsedPage.name || 'Team'
+    } else if (primary?.fetchError) {
+      fetchFailures += 1
+    }
+    // FNC /teams/{id} is members-only; team-stats is primary. AJWP often only has /teams/{id}.
+    if (!players.length) {
+      const fallbackUrl = teamsPageUrlFromTeamLink(urls[i] || '')
+      if (fallbackUrl && fallbackUrl !== urls[i]) {
+        const fb = await fetchHtml(fallbackUrl)
+        if (fb.html) {
+          const parsedPage = await playersFromRosterHtml(fb.html)
+          if (parsedPage.players.length) {
+            players = parsedPage.players
+            name = t.name || parsedPage.name || name || 'Team'
+          }
+        } else if (fb.fetchError) {
+          fetchFailures += 1
+        }
+      }
+    }
+    if (!players.length) {
+      warnings.push(`No players parsed for ${name || t.name || 'team'} — roster may require RevSport login.`)
+    }
+    teams.push({ name: name || 'Team', players })
+  }
+  if (fetchFailures) {
     warnings.push('Could not load one or more team lists — add players by hand or paste HTML.')
   }
   return { ...parsed, teams, warnings }
