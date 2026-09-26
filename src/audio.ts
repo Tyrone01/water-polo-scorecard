@@ -66,45 +66,42 @@ export function unlockAudio(): void {
 
 
 /**
- * Poolside electronic horn (water polo scoreboard style):
- * loud, flat dual-tone blast — not a police-style wail.
- * Used for Siren, shot-clock zero, and quarter end.
+ * Poolside electronic horn: three sharp dual-tone bursts
+ * (Siren, shot-clock zero, and quarter end).
  */
 function playPoolHorn(ctx: AudioContext): void {
   const now = ctx.currentTime
-  const duration = 1.15
+  const burst = 0.14
+  const gap = 0.11
+  const total = burst * 3 + gap * 2 + 0.04
+
   const master = ctx.createGain()
   master.connect(ctx.destination)
-  master.gain.setValueAtTime(0.0001, now)
-  master.gain.exponentialRampToValueAtTime(0.42, now + 0.012)
-  master.gain.setValueAtTime(0.42, now + duration - 0.06)
-  master.gain.exponentialRampToValueAtTime(0.0001, now + duration)
+  master.gain.setValueAtTime(1, now)
 
-  // Dual square tones ~major-ish stack, steady pitch (classic electronic horn)
   for (const [freq, level] of [
     [415, 0.55],
-    [622, 0.45],
+    [622, 0.48],
+    [207, 0.16],
   ] as const) {
     const osc = ctx.createOscillator()
     const g = ctx.createGain()
-    osc.type = 'square'
+    osc.type = freq < 300 ? 'sawtooth' : 'square'
     osc.frequency.setValueAtTime(freq, now)
-    g.gain.setValueAtTime(level, now)
     osc.connect(g)
     g.connect(master)
+    g.gain.setValueAtTime(0.0001, now)
+    for (let i = 0; i < 3; i++) {
+      const start = now + i * (burst + gap)
+      const end = start + burst
+      g.gain.setValueAtTime(0.0001, start)
+      g.gain.exponentialRampToValueAtTime(level, start + 0.008)
+      g.gain.setValueAtTime(level, end - 0.025)
+      g.gain.exponentialRampToValueAtTime(0.0001, end)
+    }
     osc.start(now)
-    osc.stop(now + duration + 0.02)
+    osc.stop(now + total)
   }
-  // Light saw underlay for buzz / "air" of a board horn
-  const saw = ctx.createOscillator()
-  const sg = ctx.createGain()
-  saw.type = 'sawtooth'
-  saw.frequency.setValueAtTime(207, now)
-  sg.gain.setValueAtTime(0.18, now)
-  saw.connect(sg)
-  sg.connect(master)
-  saw.start(now)
-  saw.stop(now + duration + 0.02)
 }
 
 export function playClockSound(kind: ClockSignalKind): void {
