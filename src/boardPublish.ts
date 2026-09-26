@@ -1,5 +1,5 @@
 import { formatTime, isOutForRemainder, personalFoulCount, runningScoreFromEvents } from './engine'
-import { GOAL_CODES, type BreakKind, type EventCode, type Match, type PeriodId, type Side, type Team } from './types'
+import { GOAL_CODES, type BreakKind, type ClockSignal, type EventCode, type Match, type PeriodId, type Side, type Team } from './types'
 
 /** Codes shown on the spectator rails: goals plus personal fouls / game exclusion. */
 export const BOARD_RAIL_CODES: EventCode[] = [...GOAL_CODES, 'E', 'P', 'S']
@@ -39,6 +39,7 @@ export interface BoardSnapshot {
   shotClockRemainingSec: number
   clockRunning: boolean
   shotClockRunning: boolean
+  clockSignal?: ClockSignal | null
   breakKind: BreakKind | null
   breakRemainingSec: number
   breakRunning: boolean
@@ -97,6 +98,7 @@ export function buildBoardSnapshot(match: Match, now = Date.now()): BoardSnapsho
     shotClockRemainingSec: match.shotClockRemainingSec ?? match.shotClockSec,
     clockRunning: match.clockRunning,
     shotClockRunning: match.shotClockRunning,
+    clockSignal: match.clockSignal ?? null,
     breakKind: match.breakKind ?? null,
     breakRemainingSec: match.breakRemainingSec ?? 0,
     breakRunning: match.breakRunning ?? false,

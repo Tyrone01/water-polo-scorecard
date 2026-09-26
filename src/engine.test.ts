@@ -197,6 +197,11 @@ describe('scoring rules', () => {
     m = tickClock(m, 2)
     expect(m.clockRemainingSec).toBe(53)
     expect(m.shotClockRemainingSec).toBe(20)
+    m = { ...m, shotClockRunning: true }
+    m = tickClock(m, 20)
+    expect(m.shotClockRemainingSec).toBe(0)
+    expect(m.shotClockRunning).toBe(false)
+    expect(m.clockSignal?.kind).toBe('shot')
   })
 
   it('auto-advances to the next quarter when the game clock runs out', () => {
@@ -207,6 +212,7 @@ describe('scoring rules', () => {
     expect(m.shotClockRunning).toBe(false)
     expect(m.clockRemainingSec).toBe(quarterLengthSec(m))
     expect(m.ended).toBe(false)
+    expect(m.clockSignal?.kind).toBe('period')
   })
 
   it('ends a round game when Q4 clock runs out', () => {

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { playClockSignal, unlockAudio } from '../audio'
 import { formatTime } from '../engine'
 import type { BoardFoulSummary, BoardLastEvent, BoardRosterPlayer, BoardSnapshot } from '../boardPublish'
 
@@ -102,10 +103,41 @@ export function SpectatorBoard({ id }: Props) {
     return () => window.clearInterval(t)
   }, [snap?.clockRunning, snap?.shotClockRunning, snap?.breakRunning])
 
+  const [soundArmed, setSoundArmed] = useState(false)
+  const firstSnapshot = useRef(true)
+  const lastPlayedSignal = useRef<string | null>(null)
+
+  useEffect(() => {
+    const arm = () => {
+      unlockAudio()
+      setSoundArmed(true)
+    }
+    window.addEventListener('pointerdown', arm, { once: true })
+    window.addEventListener('keydown', arm, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', arm)
+      window.removeEventListener('keydown', arm)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!snap) return
+    const signal = snap.clockSignal
+    if (firstSnapshot.current) {
+      firstSnapshot.current = false
+      lastPlayedSignal.current = signal?.id ?? null
+      return
+    }
+    if (!signal || signal.id === lastPlayedSignal.current) return
+    lastPlayedSignal.current = signal.id
+    if (soundArmed) playClockSignal(signal)
+  }, [snap, soundArmed])
+
   if (!snap) {
     return (
       <div className="board board-wait">
         <p>Waiting for table…</p>
+        {!soundArmed ? <p className="board-sound-hint">Tap anywhere to enable poolside sound</p> : null}
       </div>
     )
   }
@@ -127,6 +159,11 @@ export function SpectatorBoard({ id }: Props) {
 
   return (
     <div className="board">
+      {!soundArmed ? (
+        <button type="button" className="board-sound-arm" onClick={() => { unlockAudio(); setSoundArmed(true) }}>
+          Tap for sound
+        </button>
+      ) : null}
       <div className="board-names">
         <div className={`board-name white${snap.possession === 'white' ? ' has-ball' : ''}`}>
           <span className="board-side">White</span>

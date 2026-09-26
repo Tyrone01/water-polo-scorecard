@@ -13,6 +13,7 @@ import {
   type AgeGroup,
   type ApplyResult,
   type BreakKind,
+  type ClockSignal,
   type EventCode,
   type FoulSlot,
   type LogEvent,
@@ -101,6 +102,7 @@ export function newMatch(partial: Partial<Match> = {}): Match {
     shotClockShortSec: partial.shotClockShortSec ?? DEFAULT_SHOT_CLOCK_SHORT_SEC,
     shotClockRemainingSec: partial.shotClockRemainingSec ?? (partial.shotClockSec ?? DEFAULT_SHOT_CLOCK_SEC),
     shotClockRunning: partial.shotClockRunning ?? false,
+    clockSignal: partial.clockSignal ?? null,
     quarterBreakSec: partial.quarterBreakSec ?? DEFAULT_QUARTER_BREAK_SEC,
     halfTimeBreakSec: partial.halfTimeBreakSec ?? DEFAULT_HALF_TIME_BREAK_SEC,
     breakRemainingSec: partial.breakRemainingSec ?? 0,
@@ -545,6 +547,7 @@ export function tickClock(match: Match, elapsedSec: number): Match {
   let clockRunning = match.clockRunning
   let shotClockRemainingSec = match.shotClockRemainingSec ?? match.shotClockSec
   let shotClockRunning = match.shotClockRunning
+  let clockSignal = match.clockSignal ?? null
   let quarterExpired = false
   if (clockRunning) {
     clockRemainingSec = Math.max(0, clockRemainingSec - elapsedSec)
@@ -555,9 +558,12 @@ export function tickClock(match: Match, elapsedSec: number): Match {
       quarterExpired = true
     }
   }
-  if (shotClockRunning) {
+  if (!quarterExpired && shotClockRunning) {
     shotClockRemainingSec = Math.max(0, shotClockRemainingSec - elapsedSec)
-    if (shotClockRemainingSec <= 0) shotClockRunning = false
+    if (shotClockRemainingSec <= 0) {
+      shotClockRunning = false
+      clockSignal = newClockSignal('shot')
+    }
   }
   const next: Match = {
     ...match,
@@ -565,9 +571,14 @@ export function tickClock(match: Match, elapsedSec: number): Match {
     clockRunning,
     shotClockRemainingSec,
     shotClockRunning,
+    clockSignal,
   }
   if (quarterExpired) return endQuarter(next).match
   return next
+}
+
+function newClockSignal(kind: ClockSignal['kind']): ClockSignal {
+  return { id: uid(), kind }
 }
 
 function clearBreakFields(match: Match): Match {
@@ -658,19 +669,20 @@ function advanceFromQuarter(match: Match): Match {
 }
 
 export function endQuarter(match: Match): { match: Match; check: ReconcileResult } {
-  const check = reconcile(match)
-  if (match.breakKind) {
-    return { match: advanceFromQuarter(match), check }
+  const signalled = { ...match, clockSignal: newClockSignal('period') }
+  const check = reconcile(signalled)
+  if (signalled.breakKind) {
+    return { match: advanceFromQuarter(signalled), check }
   }
-  const nextPeriod = nextPeriodId(match)
+  const nextPeriod = nextPeriodId(signalled)
   if (nextPeriod == null) {
-    return { match: endMatch(match), check }
+    return { match: endMatch(signalled), check }
   }
-  const brk = breakForNextPeriod(match, nextPeriod)
+  const brk = breakForNextPeriod(signalled, nextPeriod)
   if (brk) {
-    return { match: startBreak(match, brk.kind, brk.sec), check }
+    return { match: startBreak(signalled, brk.kind, brk.sec), check }
   }
-  return { match: advanceFromQuarter(match), check }
+  return { match: advanceFromQuarter(signalled), check }
 }
 
 export interface ReconcileResult {

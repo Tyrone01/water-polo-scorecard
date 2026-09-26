@@ -10,6 +10,13 @@ export type PeriodId = 1 | 2 | 3 | 4 | 'PSO'
 
 export type BreakKind = 'quarter' | 'half'
 
+export type ClockSignalKind = 'shot' | 'period'
+
+export interface ClockSignal {
+  id: string
+  kind: ClockSignalKind
+}
+
 export type FoulCode = 'E' | 'P' | 'S' | 'line'
 
 export interface Officials {
@@ -76,6 +83,7 @@ export interface Match {
   shotClockShortSec: number
   shotClockRemainingSec: number
   shotClockRunning: boolean
+  clockSignal?: ClockSignal | null
   mode: MatchMode
   officials: Officials
   white: Team

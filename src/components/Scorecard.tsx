@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { playClockSignal, playClockSound, unlockAudio } from '../audio'
 import { exportEventLog, exportPlayerSummary } from '../csv'
 import { autoSaveMatchToDrive, retrySaveMatchToDrive } from '../driveClient'
 import {
@@ -43,6 +44,14 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
   const [showComments, setShowComments] = useState(false)
   const [showLog, setShowLog] = useState(false)
   const [recon, setRecon] = useState<string | null>(null)
+  const lastPlayedSignal = useRef(match.clockSignal?.id ?? null)
+
+  useEffect(() => {
+    const signal = match.clockSignal
+    if (!signal || signal.id === lastPlayedSignal.current) return
+    lastPlayedSignal.current = signal.id
+    playClockSignal(signal)
+  }, [match.clockSignal?.id, match.clockSignal?.kind])
 
   useEffect(() => {
     if (!match.clockRunning) setTimeStr(formatTime(match.clockRemainingSec))
@@ -258,6 +267,7 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
               <button
                 className="btn"
                 onClick={() => {
+                  unlockAudio()
                   const { match: next, check } = endQuarter(match)
                   setMatch(next)
                   setRecon(
@@ -353,17 +363,31 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
               ) : null}
               <span className="muted">Game clock</span>
             </div>
-            <div className="clock game-rail">
-              {formatTime(match.breakKind ? match.breakRemainingSec : match.clockRemainingSec)}
+            <div className="clock-row">
+              <div className="clock game-rail">
+                {formatTime(match.breakKind ? match.breakRemainingSec : match.clockRemainingSec)}
+              </div>
+              <button
+                type="button"
+                className="btn siren-btn"
+                title="Play quarter-end siren"
+                onClick={() => {
+                  unlockAudio()
+                  playClockSound('period')
+                }}
+              >
+                Siren
+              </button>
             </div>
             <div className="clock-actions rail-game-actions">
               <button
                 className="btn"
-                onClick={() =>
+                onClick={() => {
+                  unlockAudio()
                   match.breakKind
                     ? setMatch({ ...match, breakRunning: !match.breakRunning })
                     : setMatch({ ...match, clockRunning: !match.clockRunning })
-                }
+                }}
               >
                 {match.breakKind ? (match.breakRunning ? 'Pause' : 'Start') : match.clockRunning ? 'Pause' : 'Start'}
               </button>
@@ -415,6 +439,7 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues }: P
               <button
                 className="btn clock-run shot-primary"
                 onClick={() => {
+                  unlockAudio()
                   if (match.shotClockRunning) {
                     setMatch({ ...match, shotClockRunning: false })
                     return
