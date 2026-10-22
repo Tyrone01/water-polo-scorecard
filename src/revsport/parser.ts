@@ -38,6 +38,8 @@ export interface ImportedGame {
   detailsUrl: string
   homeTeamUrl?: string
   awayTeamUrl?: string
+  /** Round of the page the card came from (e.g. "Round 2"). */
+  round?: string
   /** RevSport ids from the fixture card links. */
   gameId?: string
   homeTeamId?: string

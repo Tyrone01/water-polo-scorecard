@@ -93,7 +93,8 @@ export function mergeTeamById(existing: Team | undefined, incoming: Team): Team 
   const rosterMissing = players.length === 0
   return {
     ...existing,
-    name: incoming.name || existing.name,
+    // Same team id: keep the name the scorer sees (a team-stats page can parse as just "Team").
+    name: existing.name || incoming.name,
     players,
     ...(rosterMissing ? { rosterMissing: true } : { rosterMissing: undefined }),
   }

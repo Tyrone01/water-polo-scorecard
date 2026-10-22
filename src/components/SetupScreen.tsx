@@ -144,14 +144,30 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
     const teams = result.teams.map(importedTeamToTeam)
     const side = target === 'both' && teams.length === 1 ? 'white' : target
     const usedIds = ref?.homeTeamId || ref?.awayTeamId
-    if (!usedIds && side === 'both' && teams.length >= 2) {
-      idNotes.push('This page has no RevSport team ids, so White and Blue follow the page. Check they are the right way round.')
+    // No home/away on the page, but its teams are the ones already loaded: keep each on its side by id.
+    const sameTeams =
+      !usedIds && side === 'both' && teams.length >= 2 && match.white.revsportId && match.blue.revsportId
+        ? assignSidesById(result.teams, match.white.revsportId, match.blue.revsportId)
+        : undefined
+    if (!usedIds && side === 'both' && teams.length >= 2 && !sameTeams?.byId) {
+      idNotes.push('This page does not say which team is home, so White and Blue follow the page. Check they are the right way round.')
     }
     setMatch((m) => {
       let next = { ...m, ...importMetaPatch(m, result) }
       if (sourceUrl) next.sourceUrl = sourceUrl
-      next.revsport = ref
-      if (usedIds) {
+      // A game page replaces the game's RevSport ids. A team or roster page for one of this
+      // game's teams (by team id), or a page with no ids at all, keeps them.
+      const gameTeamIds = [m.revsport?.homeTeamId, m.revsport?.awayTeamId]
+      const keepGame =
+        !ref?.gameId && result.teams.every((t) => !t.revsportId || gameTeamIds.includes(t.revsportId))
+      next.revsport = keepGame ? m.revsport || ref : ref
+      if (sameTeams?.byId && sameTeams.white && sameTeams.blue) {
+        next = {
+          ...next,
+          white: mergeTeamById(m.white, importedTeamToTeam(sameTeams.white)),
+          blue: mergeTeamById(m.blue, importedTeamToTeam(sameTeams.blue)),
+        }
+      } else if (usedIds) {
         const white = sides.white
           ? importedTeamToTeam(sides.white)
           : placeholderTeam(fixture?.home || 'White', ref?.homeTeamId)

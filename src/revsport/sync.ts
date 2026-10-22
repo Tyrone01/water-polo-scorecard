@@ -15,6 +15,7 @@ import {
 import { expandPendingRounds, fetchRevSport, rosterMissingNote, type Result } from './client'
 import type { RevSportClubId } from './clubs'
 import { compDecision, compDecisionNote } from './compIds'
+import { sydneyTodayISO } from './dates'
 import { competitionIdFromUrl, gameIdFromUrl, teamIdFromUrl } from './ids'
 import type { ImportedGame, ImportedGrade } from './parser'
 
@@ -131,7 +132,7 @@ function toLiveGame(g: ImportedGame, meta: { competition?: string; grade?: strin
     awayTeamUrl: g.awayTeamUrl,
     competition: meta.competition,
     grade: meta.grade,
-    round: meta.round,
+    round: g.round || meta.round,
     referees: g.referees,
     ...(competitionId ? { competitionId } : {}),
     ...(homeTeamId ? { homeTeamId } : {}),
@@ -203,6 +204,15 @@ async function loadGradeGames(grade: ImportedGrade): Promise<{
     gradeLabel,
     warnings: result.warnings || [],
   }
+}
+
+/**
+ * Games from today (Sydney) onwards, so last week's games are not listed next to
+ * tonight's. If nothing is ahead (end of season), every game stays listed.
+ */
+export function gamesFromToday(games: LiveGame[], todayISO = sydneyTodayISO()): LiveGame[] {
+  const ahead = games.filter((g) => !g.date || g.date >= todayISO)
+  return ahead.length ? ahead : games
 }
 
 /** Split hub grades into the ones to load and the ones held back, by RevSport competition id only. */
@@ -300,7 +310,7 @@ export async function syncFncLive(hubUrl = FNC_GAMES_HUB, club: RevSportClubId |
     eventName,
     competitions,
     games,
-    venues: groupGamesByVenue(games),
+    venues: groupGamesByVenue(gamesFromToday(games)),
     heldBack,
     warnings: warnings.filter(Boolean),
   }

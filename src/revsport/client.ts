@@ -126,7 +126,8 @@ function mergeRoundPage(meta: ImportResult, html: string, games: ImportedGame[],
   for (const g of p.games || []) {
     if (seen.has(g.detailsUrl)) continue
     seen.add(g.detailsUrl)
-    games.push(g)
+    // Each round page labels its own games, so a Round 2 game is not shown as Round 3.
+    games.push(p.round && !g.round ? { ...g, round: p.round } : g)
   }
   return meta
 }
