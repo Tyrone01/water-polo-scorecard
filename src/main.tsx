@@ -28,6 +28,10 @@ const VENUE_LABELS: Record<string, string> = {
 }
 
 function BoardIndex() {
+  const [venueId, setVenueId] = React.useState<string | null>(null)
+  const label = venueId ? VENUE_LABELS[venueId] ?? venueId : ''
+  const scoreHref = venueId ? `${onPublicBoardHost ? SCORE_PATH : '/'}?venue=${encodeURIComponent(venueId)}` : '#'
+  const boardHref = venueId ? (onPublicBoardHost ? `/${venueId}` : `/board/${venueId}`) : '#'
   return (
     <div className="board board-hub">
       <div className="board-hub-bar" aria-hidden="true" />
@@ -35,27 +39,34 @@ function BoardIndex() {
         <img className="fnc-logo board-hub-logo" src="/logo-fnc.jpg" alt="Far North Coast Water Polo" />
         <div className="board-hub-text">
           <h1>Far North Coast Water Polo</h1>
-          <p className="board-hub-sub">Pool TV scoreboards — pick a venue</p>
+          <p className="board-hub-sub">{venueId ? `${label}: what are you doing?` : 'Which pool are you at?'}</p>
         </div>
       </header>
-      <div className="board-hub-grid">
-        {FNC_BOARD_VENUE_IDS.map((id) => (
-          <a
-            key={id}
-            className="board-hub-card"
-            href={onPublicBoardHost ? `/${id}` : `/board/${id}`}
-          >
-            <strong>{VENUE_LABELS[id] ?? id}</strong>
-            <span className="board-hub-path">{onPublicBoardHost ? `/${id}` : `/board/${id}`}</span>
-          </a>
-        ))}
-      </div>
-      <div className="board-hub-score">
-        <a className="board-hub-score-btn" href={onPublicBoardHost ? SCORE_PATH : '/'}>
-          Score a game
-        </a>
-        <span className="board-hub-score-note">For the scorer's table: pick your pool, then tonight's game.</span>
-      </div>
+      {!venueId ? (
+        <div className="board-hub-grid">
+          {FNC_BOARD_VENUE_IDS.map((id) => (
+            <button key={id} type="button" className="board-hub-card" onClick={() => setVenueId(id)}>
+              <strong>{VENUE_LABELS[id] ?? id}</strong>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="board-hub-grid">
+            <a className="board-hub-card board-hub-choice" href={scoreHref}>
+              <strong>Score a game</strong>
+              <span className="board-hub-path">Tonight&apos;s games at {label}</span>
+            </a>
+            <a className="board-hub-card board-hub-choice" href={boardHref}>
+              <strong>Set up the TV board</strong>
+              <span className="board-hub-path">Open this on the pool TV</span>
+            </a>
+          </div>
+          <button type="button" className="board-hub-back" onClick={() => setVenueId(null)}>
+            ← Change pool
+          </button>
+        </>
+      )}
     </div>
   )
 }

@@ -37,7 +37,11 @@ function initialScreen(): Screen {
 export function App() {
   const [match, setMatchState] = useState<Match | null>(() => loadMatch())
   const [screen, setScreen] = useState<Screen>(() => initialScreen())
-  const [lastVenueId, setLastVenueId] = useState<string | null>(null)
+  // Landing page (board.fncwp.com) sends scorers here as /score?venue=alstonville.
+  const [lastVenueId, setLastVenueId] = useState<string | null>(() => {
+    const v = new URLSearchParams(window.location.search).get('venue')
+    return v && /^[a-z0-9_-]{2,48}$/i.test(v) ? v.toLowerCase() : null
+  })
 
   useEffect(() => {
     if (match) saveMatch(match)

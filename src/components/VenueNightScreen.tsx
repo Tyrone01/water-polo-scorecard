@@ -84,7 +84,12 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
 
   const venue: LiveVenue | VenueNight | null = useMemo(() => {
     if (demoMode) return FNC_VENUES.find((v) => v.id === venueId) ?? null
-    return liveVenues.find((v) => v.id === venueId) ?? null
+    return (
+      liveVenues.find((v) => v.id === venueId) ??
+      // A pool id from the landing page (e.g. alstonville) vs a longer RevSport slug.
+      (venueId ? liveVenues.find((v) => boardIdForMatch({ venue: v.name }) === venueId) : undefined) ??
+      null
+    )
   }, [demoMode, venueId, liveVenues])
 
   const eventLabel = demoMode
