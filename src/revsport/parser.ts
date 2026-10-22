@@ -5,6 +5,7 @@
 
 import { inferIsoDate, sydneyTodayISO } from './dates'
 import { htmlLooksLikeRevSport, isRevSportPath, isRevSportUrl, resolveHref } from './url'
+import { competitionIdFromUrl, gameIdFromUrl, playerIdFromHref, teamIdFromUrl } from './ids'
 
 export { htmlLooksLikeRevSport, isRevSportUrl, isRevSportPath } from './url'
 
@@ -13,11 +14,17 @@ export interface ImportedPlayer {
   cap: string | null
   capGuessed: boolean
   attended?: boolean | number
+  /** RevSport player id from the public /games/statistics/{id} link. */
+  revsportId?: string
 }
 
 export interface ImportedTeam {
   name: string
   players: ImportedPlayer[]
+  /** RevSport team id (e.g. 443848). */
+  revsportId?: string
+  /** True when RevSport has no public player list for this team. */
+  rosterMissing?: boolean
 }
 
 export interface ImportedGame {
@@ -31,6 +38,11 @@ export interface ImportedGame {
   detailsUrl: string
   homeTeamUrl?: string
   awayTeamUrl?: string
+  /** RevSport ids from the fixture card links. */
+  gameId?: string
+  homeTeamId?: string
+  awayTeamId?: string
+  competitionId?: string
 }
 
 export interface ImportedRound {
@@ -60,6 +72,10 @@ export interface ImportResult {
   rounds?: ImportedRound[]
   grades?: ImportedGrade[]
   teamPageUrls?: string[]
+  /** RevSport game id when the page is a single game. */
+  gameId?: string
+  /** RevSport competition id from the page URL or its links. */
+  competitionId?: string
   warnings: string[]
 }
 
@@ -90,6 +106,8 @@ interface ParsedTable {
   heading: string
   headers: string[]
   rows: string[][]
+  /** RevSport player id per body row (same index as rows), from /games/statistics/{id}. */
+  rowPlayerIds: (string | undefined)[]
   startIndex: number
 }
 
@@ -100,6 +118,7 @@ function parseTables(html: string): ParsedTable[] {
   while ((m = re.exec(html))) {
     const inner = m[1]
     const rows: string[][] = []
+    const rowIds: (string | undefined)[] = []
     const trRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi
     let tr: RegExpExecArray | null
     while ((tr = trRe.exec(inner))) {
@@ -109,7 +128,11 @@ function parseTables(html: string): ParsedTable[] {
       while ((td = tdRe.exec(tr[1]))) {
         cells.push(stripTags(td[1]))
       }
-      if (cells.some((c) => c.length > 0)) rows.push(cells)
+      if (cells.some((c) => c.length > 0)) {
+        rows.push(cells)
+        const link = tr[1].match(/href="([^"]*\/games\/statistics\/[^"]+)"/i)
+        rowIds.push(playerIdFromHref(link?.[1]))
+      }
     }
     if (rows.length === 0) continue
     const before = html.slice(Math.max(0, m.index - 1200), m.index)
@@ -119,7 +142,8 @@ function parseTables(html: string): ParsedTable[] {
     const headerish = rows[0].every((c) => /name|#|goals|foul|attend/i.test(c) || c.length < 24)
     const headers = headerish ? rows[0] : []
     const body = headerish ? rows.slice(1) : rows
-    tables.push({ heading, headers, rows: body, startIndex: m.index })
+    const bodyIds = headerish ? rowIds.slice(1) : rowIds
+    tables.push({ heading, headers, rows: body, rowPlayerIds: bodyIds, startIndex: m.index })
   }
   return tables
 }
@@ -187,7 +211,9 @@ function playersFromTable(t: ParsedTable): ImportedPlayer[] {
   const nameIdx = headerIndex(t.headers, 'name')
   const attendIdx = headerIndex(t.headers, 'attend')
   const players: ImportedPlayer[] = []
-  for (const row of t.rows) {
+  for (let i = 0; i < t.rows.length; i++) {
+    const row = t.rows[i]
+    const revsportId = t.rowPlayerIds[i]
     const nameCell = nameIdx >= 0 ? row[nameIdx] ?? '' : row.find((c) => /[A-Za-z]/.test(c)) ?? ''
     const { name, cap: namedCap } = parsePlayerName(nameCell)
     if (isJunkName(name)) continue
@@ -199,7 +225,7 @@ function playersFromTable(t: ParsedTable): ImportedPlayer[] {
       if (/^\d+$/.test(a)) attended = Number(a)
       else if (a) attended = true
     }
-    players.push({ name, cap, capGuessed: false, attended })
+    players.push({ name, cap, capGuessed: false, attended, ...(revsportId ? { revsportId } : {}) })
   }
   return assignMissingCaps(players)
 }
@@ -412,8 +438,12 @@ function parseMatchInfo(html: string, meta: ReturnType<typeof parsePageHeading>,
     date: parsedDate.date,
     startTime: parsedDate.time,
     referees: referees || undefined,
-    teams: named.map((t) => ({ name: t.name, players: [] })),
+    teams: named.map((t) => {
+      const revsportId = teamIdFromUrl(t.url)
+      return { name: t.name, players: [], ...(revsportId ? { revsportId } : {}) }
+    }),
     teamPageUrls: named.map((t) => t.url),
+    competitionId: named.map((t) => competitionIdFromUrl(t.url)).find(Boolean),
     warnings: [],
   }
 }
@@ -459,6 +489,10 @@ function parseFixtureCards(html: string, origin?: string): ImportedGame[] {
       detailsUrl: detailsUrl,
       homeTeamUrl: teams[0].url,
       awayTeamUrl: teams[1].url,
+      gameId: gameIdFromUrl(detailsUrl),
+      homeTeamId: teamIdFromUrl(teams[0].url),
+      awayTeamId: teamIdFromUrl(teams[1].url),
+      competitionId: competitionIdFromUrl(teams[0].url),
     })
   }
   return games
@@ -537,9 +571,12 @@ export function parseRevSportHtml(html: string, todayISO = sydneyTodayISO(), pag
   const statsTables = tables.filter((t) => tableKind(t) === 'team-stats')
 
   if (gameTables.length >= 1) {
+    // A team-stats page with a goals column looks like a match card; its one team is the page's team.
+    const pageTeamId = gameTables.length === 1 ? teamIdFromUrl(pageUrl) : undefined
     const teams: ImportedTeam[] = gameTables.map((t) => ({
       name: t.heading || 'Team',
       players: playersFromTable(t),
+      ...(pageTeamId ? { revsportId: pageTeamId } : {}),
     }))
     return { source: 'game', ...meta, teams, warnings: [...warnings, ...teamWarnings(teams)] }
   }
@@ -553,7 +590,8 @@ export function parseRevSportHtml(html: string, todayISO = sydneyTodayISO(), pag
     const teamName =
       nameFromHeading.find((n) => !/team list|coming up|previous/i.test(n)) || t.heading || 'Team'
     const players = playersFromTable(t)
-    const teams = [{ name: teamName, players }]
+    const teamId = teamIdFromUrl(pageUrl)
+    const teams: ImportedTeam[] = [{ name: teamName, players, ...(teamId ? { revsportId: teamId } : {}) }]
     return { source: 'team-list', ...meta, teams, warnings: [...warnings, ...teamWarnings(teams)] }
   }
 
@@ -565,12 +603,16 @@ export function parseRevSportHtml(html: string, todayISO = sydneyTodayISO(), pag
       .filter(Boolean)
     const teamName = nameFromHeading[nameFromHeading.length - 1] || t.heading || 'Team'
     const players = playersFromTable(t)
-    const teams = [{ name: teamName, players }]
+    const teamId = teamIdFromUrl(pageUrl)
+    const teams: ImportedTeam[] = [{ name: teamName, players, ...(teamId ? { revsportId: teamId } : {}) }]
     return { source: 'team-stats', ...meta, teams, warnings: [...warnings, ...teamWarnings(teams)] }
   }
 
   const matchInfo = parseMatchInfo(html, meta, origin)
-  if (matchInfo) return matchInfo
+  if (matchInfo) {
+    const gameId = gameIdFromUrl(pageUrl)
+    return gameId ? { ...matchInfo, gameId } : matchInfo
+  }
 
   const games = parseFixtureCards(html, origin)
   const rounds = parseRounds(html, todayISO, origin)

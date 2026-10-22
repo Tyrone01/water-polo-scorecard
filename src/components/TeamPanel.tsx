@@ -1,5 +1,6 @@
 import { isOutForRemainder, playerGoalTotal } from '../engine'
 import type { Player, Side, Team } from '../types'
+import { rosterMissingNote } from '../revsport/client'
 
 interface Props {
   side: Side
@@ -48,6 +49,11 @@ export function TeamPanel({
           {q[4] ? ` P${q[4]}` : ''} · {q[0] + q[1] + q[2] + q[3] + q[4]}
         </div>
       </div>
+      {team.rosterMissing && team.players.length === 0 ? (
+        <p className="roster-note" role="note">
+          {rosterMissingNote(team.name || 'This team')} Use Setup to add them.
+        </p>
+      ) : null}
       <table className="team-table">
         <thead>
           <tr>

@@ -48,12 +48,28 @@ export interface Player {
   goalsQ3: number
   goalsQ4: number
   goalsPen: number
+  /** RevSport player id (from the public team-stats link). Missing for players typed in by hand. */
+  revsportId?: string
 }
 
 export interface Team {
   name: string
   players: Player[]
   timeouts: { period: PeriodId; time: string; eventId: string }[]
+  /** RevSport team id, e.g. 443848. */
+  revsportId?: string
+  /** RevSport has no public player list for this team — the scorer types caps in. */
+  rosterMissing?: boolean
+}
+
+/** RevSport ids for the game being scored. Read-only: nothing is written back to RevSport. */
+export interface RevSportRef {
+  gameId?: string
+  competitionId?: string
+  /** Home team id. Home plays White. */
+  homeTeamId?: string
+  /** Away team id. Away plays Blue. */
+  awayTeamId?: string
 }
 
 export interface LogEvent {
@@ -102,6 +118,7 @@ export interface Match {
   breakKind: BreakKind | null
   possession: Side | null
   sourceUrl: string
+  revsport?: RevSportRef
   comments: string
   finalResult: string
   started: boolean

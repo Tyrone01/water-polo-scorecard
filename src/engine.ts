@@ -80,6 +80,7 @@ export function emptyPlayer(partial: Partial<Player> & { cap: string; name: stri
     goalsQ3: 0,
     goalsQ4: 0,
     goalsPen: 0,
+    ...(partial.revsportId ? { revsportId: partial.revsportId } : {}),
   }
 }
 
@@ -126,6 +127,7 @@ export function newMatch(partial: Partial<Match> = {}): Match {
     clockRunning: false,
     possession: partial.possession ?? null,
     sourceUrl: partial.sourceUrl ?? '',
+    ...(partial.revsport ? { revsport: partial.revsport } : {}),
     comments: partial.comments ?? '',
     finalResult: partial.finalResult ?? '',
     started: partial.started ?? false,

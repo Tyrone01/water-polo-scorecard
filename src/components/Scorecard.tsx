@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { playClockSignal, unlockAudio } from '../audio'
 import { autoSaveMatchToDrive, retrySaveMatchToDrive } from '../driveClient'
+import { exportResults } from '../csv'
 import {
   applyEvent,
   deleteEvent,
@@ -177,6 +178,14 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
               Save to Drive
             </button>
           ) : null}
+          <button
+            className="btn"
+            type="button"
+            title="A file for an FNC admin to type the result into RevSport. Nothing is sent to RevSport."
+            onClick={() => exportResults(match)}
+          >
+            Results for RevSport (CSV)
+          </button>
           <button
             className="btn primary"
             type="button"

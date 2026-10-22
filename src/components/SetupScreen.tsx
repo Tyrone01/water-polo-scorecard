@@ -4,10 +4,20 @@ import { parseDriveFolderId } from '../driveFolder'
 import { boardIdForMatch, publicBoardUrl, publishBoard } from '../boardPublish'
 import { emptyPlayer, periodMinutes, quarterLengthSec, setupIssues, uid } from '../engine'
 import { connectGoogle, googleSessionEmail, hasGoogleSession } from '../googleAuth'
-import { importMetaPatch, importedTeamToTeam } from '../importApply'
-import { expandPendingRounds, fetchRevSport, importFromPaste, type Result } from '../revsport/client'
+import {
+  assignSidesById,
+  importMetaPatch,
+  importedTeamToTeam,
+  mergeTeamById,
+  placeholderTeam,
+  revsportRefFrom,
+} from '../importApply'
+import { expandPendingRounds, fetchRevSport, importFromPaste, rosterMissingNote, type Result } from '../revsport/client'
 import { gamesOnDate, pickRelevantDate, sydneyTodayISO } from '../revsport/dates'
 import { clubIdFromUrl } from '../revsport/clubs'
+import { compDecision, compDecisionNote } from '../revsport/compIds'
+import { competitionIdFromUrl } from '../revsport/ids'
+import { filterGradesById } from '../revsport/sync'
 import { isRevSportUrl, type ImportedGame, type ImportedGrade, type ImportedRound, type ImportResult } from '../revsport/parser'
 import { loadAdmin, saveAdmin } from '../storage'
 import { AGE_PERIOD_MINUTES, DEFAULT_HALF_TIME_BREAK_SEC, DEFAULT_QUARTER_BREAK_SEC, DEFAULT_SHOT_CLOCK_SEC, DEFAULT_SHOT_CLOCK_SHORT_SEC, MAX_FILL_INS, MAX_ON_CARD, PICK_FIXTURES_BY_TODAY, TEST_NUKE_GAME, type AdminSettings, type AgeGroup, type Match, type MatchMode, type Player, type Side, type Team } from '../types'
@@ -122,20 +132,41 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
     setMatch((m) => (side === 'white' ? { ...m, white: team } : { ...m, blue: team }))
   }
 
-  function applyResult(result: ImportResult, sourceUrl?: string) {
+  function applyResult(result: ImportResult, sourceUrl?: string, fixture?: ImportedGame) {
+    const idNotes: string[] = []
+    const ref = revsportRefFrom(result, fixture)
+    // A game with known home/away ids: sides by RevSport team id, never by page order or name.
+    const sides =
+      result.teams.length >= 2 || fixture
+        ? assignSidesById(result.teams, ref?.homeTeamId, ref?.awayTeamId)
+        : { byId: false, warnings: [] as string[] }
+    idNotes.push(...sides.warnings)
     const teams = result.teams.map(importedTeamToTeam)
     const side = target === 'both' && teams.length === 1 ? 'white' : target
+    const usedIds = ref?.homeTeamId || ref?.awayTeamId
+    if (!usedIds && side === 'both' && teams.length >= 2) {
+      idNotes.push('This page has no RevSport team ids, so White and Blue follow the page. Check they are the right way round.')
+    }
     setMatch((m) => {
       let next = { ...m, ...importMetaPatch(m, result) }
       if (sourceUrl) next.sourceUrl = sourceUrl
-      if (side === 'both' && teams.length >= 2) {
+      next.revsport = ref
+      if (usedIds) {
+        const white = sides.white
+          ? importedTeamToTeam(sides.white)
+          : placeholderTeam(fixture?.home || 'White', ref?.homeTeamId)
+        const blue = sides.blue
+          ? importedTeamToTeam(sides.blue)
+          : placeholderTeam(fixture?.away || 'Blue', ref?.awayTeamId)
+        next = { ...next, white: mergeTeamById(m.white, white), blue: mergeTeamById(m.blue, blue) }
+      } else if (side === 'both' && teams.length >= 2) {
         next = { ...next, white: teams[0], blue: teams[1] }
       } else if (side === 'both' && teams.length === 1) {
-        next = { ...next, white: teams[0] }
+        next = { ...next, white: mergeTeamById(m.white, teams[0]) }
       } else if (side === 'white' && teams[0]) {
-        next = { ...next, white: teams[0] }
+        next = { ...next, white: mergeTeamById(m.white, teams[0]) }
       } else if (side === 'blue' && teams[0]) {
-        next = { ...next, blue: teams[0] }
+        next = { ...next, blue: mergeTeamById(m.blue, teams[0]) }
       }
       return next
     })
@@ -145,7 +176,7 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
         : [],
     )
     const vs = result.teams.map((t) => `${t.name} (${t.players.length})`).join(' vs ')
-    setMsg([...result.warnings, ...extra, vs ? `Imported ${vs}` : ''].filter(Boolean).join('\n'))
+    setMsg([...result.warnings, ...idNotes, ...extra, vs ? `Imported ${vs}` : ''].filter(Boolean).join('\n'))
   }
 
   function showFixtureGames(result: Result) {
@@ -200,9 +231,26 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
       setMsg(result.fetchError)
       return
     }
+    const club = clubIdFromUrl(sourceUrl)
+    const pastedCompId = competitionIdFromUrl(sourceUrl) || result.competitionId
+    const pastedDecision = compDecision(club, pastedCompId)
+    if (pastedCompId && pastedDecision !== 'load') {
+      result.warnings = [
+        `${compDecisionNote(pastedDecision, pastedCompId, 'this page')} Loaded anyway because you asked for it.`,
+        ...result.warnings,
+      ]
+    }
     if ((result.grades?.length || 0) > 0 && !(result.games?.length)) {
-      setGrades(result.grades || [])
-      setMsg(`${result.grades!.length} grade${result.grades!.length === 1 ? '' : 's'}. Tap one to load games.`)
+      const split = filterGradesById(result.grades || [], club)
+      const notes = split.heldBack.map((h) => compDecisionNote(h.reason, h.competitionId, h.label))
+      setGrades(split.load)
+      if (!split.load.length) {
+        setMsg([...notes, 'No competitions on this page are on the scorecard\'s list.'].join('\n'))
+        return
+      }
+      setMsg(
+        [`${split.load.length} grade${split.load.length === 1 ? '' : 's'}. Tap one to load games.`, ...notes].join('\n'),
+      )
       return
     }
     if (result.source === 'fixtures' && (result.games?.length || 0) > 0) {
@@ -275,7 +323,7 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
     if (!result.startTime && game.time) result.startTime = game.time
     if (!result.venue && game.venue) result.venue = game.venue
     if (!result.referees && game.referees) result.referees = game.referees
-    applyResult(result, game.detailsUrl)
+    applyResult(result, game.detailsUrl, game)
     setPickerOpen(false)
   }
 
@@ -835,6 +883,12 @@ function TeamEditor({ label, team, onChange }: { label: string; team: Team; onCh
         Club / team name
         <input value={team.name} onChange={(e) => onChange({ ...team, name: e.target.value })} />
       </label>
+      {team.revsportId ? <p className="muted small">RevSport team {team.revsportId}</p> : null}
+      {team.rosterMissing && team.players.length === 0 ? (
+        <p className="roster-note" role="note">
+          {rosterMissingNote(team.name || 'This team')} Tap Add player for each one.
+        </p>
+      ) : null}
       <table className="roster-edit">
         <thead>
           <tr>

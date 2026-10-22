@@ -15,9 +15,13 @@ function jsonResponse(body: unknown, status = 200): Response {
 describe('fetchRevSport listing URL', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.useRealTimers()
   })
 
   it('loads games from the relevant round when the grade page has no cards', async () => {
+    // Round 1 of the saved AJWP listing is Fri 17 Oct 2026; pin "today" so the test does not age out.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-16T09:00:00+11:00'))
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {

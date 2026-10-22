@@ -42,6 +42,11 @@ async function playersFromRosterHtml(html: string): Promise<{ name: string; play
   return { name: page.teams[0]?.name || '', players: page.teams[0]?.players || [] }
 }
 
+/** Plain-English note for a team with no public player list on RevSport. */
+export function rosterMissingNote(teamName: string): string {
+  return `${teamName} has no public player list on RevSport. Type in each player's cap number and name before the game.`
+}
+
 async function hydrateRosters(parsed: ImportResult): Promise<ImportResult> {
   const urls = parsed.teamPageUrls || []
   if (!urls.length) return parsed
@@ -80,9 +85,14 @@ async function hydrateRosters(parsed: ImportResult): Promise<ImportResult> {
       }
     }
     if (!players.length) {
-      warnings.push(`No players parsed for ${name || t.name || 'team'} — roster may require RevSport login.`)
+      warnings.push(rosterMissingNote(name || t.name || 'this team'))
     }
-    teams.push({ name: name || 'Team', players })
+    teams.push({
+      name: name || 'Team',
+      players,
+      ...(t.revsportId ? { revsportId: t.revsportId } : {}),
+      ...(players.length ? {} : { rosterMissing: true }),
+    })
   }
   if (fetchFailures) {
     warnings.push('Could not load one or more team lists — add players by hand or paste HTML.')
