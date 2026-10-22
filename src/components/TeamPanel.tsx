@@ -51,7 +51,9 @@ export function TeamPanel({
       </div>
       {team.rosterMissing && team.players.length === 0 ? (
         <p className="roster-note" role="note">
-          {rosterMissingNote(team.name || 'This team')} Use Setup to add them.
+          {compact
+            ? 'No public player list on RevSport. Add caps and names in Setup.'
+            : `${rosterMissingNote(team.name || 'This team')} Use Setup to add them.`}
         </p>
       ) : null}
       <table className="team-table">
