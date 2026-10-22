@@ -62,9 +62,9 @@ describe('RevSport ids from URLs', () => {
 })
 
 describe('competition allow-list (by id only)', () => {
-  it('FNC loads 27800, skips practice 27655, holds back anything new', () => {
+  it('FNC loads 27800 and Socials 27655, holds back anything new', () => {
     expect(compDecision('FNC', '27800')).toBe('load')
-    expect(compDecision('FNC', '27655')).toBe('excluded')
+    expect(compDecision('FNC', '27655')).toBe('load')
     expect(compDecision('FNC', '27999')).toBe('not-listed')
     expect(compDecision('FNC', undefined)).toBe('not-listed')
   })
@@ -88,12 +88,11 @@ describe('competition allow-list (by id only)', () => {
     expect(heldBack).toEqual([])
   })
 
-  it('holds back the practice competition 27655 even if its grade has a normal name', () => {
+  it('loads the FNC Socials competition 27655 by id', () => {
     const hub = parseRevSportHtml(hubOld27655, '2026-09-26', HUB)
     const { load, heldBack } = filterGradesById(hub.grades || [], 'FNC')
-    expect(load).toEqual([])
-    expect(heldBack).toHaveLength(1)
-    expect(heldBack[0]).toMatchObject({ competitionId: '27655', reason: 'excluded' })
+    expect(load.map((g) => g.url.replace(/.*\/games\//, ''))).toEqual(['27655/39100'])
+    expect(heldBack).toEqual([])
   })
 
   it('a grade from an unknown competition is held back, not guessed', () => {
@@ -213,12 +212,17 @@ describe('syncFncLive (27800 hub)', () => {
     expect(g).toMatchObject({ homeTeamId: '443848', awayTeamId: '443850', competitionId: '27800' })
   })
 
-  it('a hub with only the practice competition loads nothing and says why', async () => {
-    const calls = stubRevSport({ [HUB]: hubOld27655 })
+  it('FNC Socials (27655) games show in the synced game and venue list', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-26T09:00:00+10:00'))
+    const socialsRound1 = read('fnc-socials-round1.html')
+    stubRevSport({ [HUB]: hubOld27655 }, (t) => (/\/games\/27655\/39100(\/round\/\d+)?$/.test(t) ? socialsRound1 : undefined))
     const snap = await syncFncLive(HUB)
-    expect(snap.games).toEqual([])
-    expect(snap.heldBack[0]).toMatchObject({ competitionId: '27655', reason: 'excluded' })
-    expect(snap.warnings.join('\n')).toMatch(/practice competition/)
-    expect(calls).toEqual([HUB])
+    expect(snap.error).toBeUndefined()
+    expect(snap.heldBack).toEqual([])
+    expect(snap.games.length).toBeGreaterThan(0)
+    expect(snap.games.every((g) => g.competitionId === '27655')).toBe(true)
+    expect(snap.games.map((g) => g.id)).toContain('2659571')
+    expect(snap.venues.map((v) => v.shortName)).toContain('Alstonville')
   })
 })

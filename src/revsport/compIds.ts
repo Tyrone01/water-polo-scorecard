@@ -17,9 +17,8 @@ export interface CompRule {
 export const COMP_RULES: Partial<Record<RevSportClubId, CompRule>> = {
   FNC: {
     // 27800 "FNC" — 2026/27 season (grades FNC, WOMENS, b grade ladies, FNC B).
-    allow: ['27800'],
-    // 27655 — practice / socials competition published by mistake.
-    exclude: ['27655'],
+    // 27655 FNC Socials — kept listed (Tyrone, 23 Oct 2026).
+    allow: ['27800', '27655'],
   },
 }
 
