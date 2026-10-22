@@ -552,6 +552,37 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   color: var(--fnc-gold);
   text-transform: lowercase;
 }
+.board-hub-score {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  width: 100%;
+  max-width: 920px;
+}
+.board-hub-score-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 12px 26px;
+  border-radius: 14px;
+  background: var(--fnc-gold);
+  color: var(--fnc-ink);
+  font-size: clamp(18px, 2vw, 22px);
+  font-weight: 900;
+  text-decoration: none;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.6);
+}
+.board-hub-score-btn:hover, .board-hub-score-btn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}
+.board-hub-score-note {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--muted);
+}
 .board-wait {
   align-items: center;
   justify-content: center;

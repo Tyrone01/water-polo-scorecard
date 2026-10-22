@@ -11,7 +11,10 @@ const onPublicBoardHost = host === 'board.fncwp.com'
 
 /** /board/{id} always; on board.* also /alstonville (short TV URLs). */
 const boardMatch = path.match(/^\/board(?:\/([^/]+))?$/)
-const shortMatch = onPublicBoardHost ? path.match(/^\/([a-z0-9_-]{4,40})$/) : null
+/** Where scorers go to pick a pool and that night's games (the scorer app, not a TV board). */
+const SCORE_PATH = '/score'
+const isScorePath = path === SCORE_PATH
+const shortMatch = onPublicBoardHost && !isScorePath ? path.match(/^\/([a-z0-9_-]{4,40})$/) : null
 const rawId = boardMatch?.[1] || shortMatch?.[1] || null
 const boardId = rawId && BOARD_ID_RE.test(rawId) ? rawId : null
 const isBoardIndex = path === '/board' || (onPublicBoardHost && path === '/')
@@ -46,6 +49,12 @@ function BoardIndex() {
             <span className="board-hub-path">{onPublicBoardHost ? `/${id}` : `/board/${id}`}</span>
           </a>
         ))}
+      </div>
+      <div className="board-hub-score">
+        <a className="board-hub-score-btn" href={onPublicBoardHost ? SCORE_PATH : '/'}>
+          Score a game
+        </a>
+        <span className="board-hub-score-note">For the scorer's table: pick your pool, then tonight's game.</span>
       </div>
     </div>
   )
