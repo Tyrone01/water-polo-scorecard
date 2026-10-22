@@ -456,6 +456,9 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
               <a href={publicBoardUrl(boardIdForMatch(match))} target="_blank" rel="noreferrer">
                 Open board
               </a>
+              <span className="muted" style={{ marginLeft: 8 }}>
+                → /{boardIdForMatch(match)}
+              </span>
             </div>
           </div>
         </aside>

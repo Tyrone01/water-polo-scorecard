@@ -2,3 +2,14 @@ node_modules
 dist
 .DS_Store
 *.local
+
+# Secrets and local tooling — never commit
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+.wrangler/
+*.pem
+*.key
+credentials*.json
+*cookie*

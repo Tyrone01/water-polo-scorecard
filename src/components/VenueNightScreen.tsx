@@ -10,6 +10,7 @@ import {
   type LiveVenue,
   type SyncSnapshot,
 } from '../revsport/sync'
+import { boardIdForMatch, isFncBoardVenueId } from '../boardPublish'
 import type { Match } from '../types'
 
 interface Props {
@@ -91,6 +92,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
     : snap?.eventName || 'Far North Coast Water Polo'
 
   async function startLiveGame(game: LiveGame) {
+    if (!venue) return
     setStartingId(game.id)
     setStartMsg('Loading teams and venue from FNC…')
     const { match, error, warnings } = await loadLiveMatch(game)
@@ -101,11 +103,22 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
     }
     if (warnings.length) setStartMsg(warnings.join('\n'))
     else setStartMsg('')
-    startBuiltMatch(match, onStart)
+    // Board id is the selected pool (alstonville etc.), not a long RevSport slug.
+    // Prefer the selected venue's display name for the scorecard / TV meta line.
+    const boardVenueId = boardIdForMatch({ venue: venue.name, boardVenueId: venue.id })
+    startBuiltMatch(
+      {
+        ...match,
+        boardVenueId,
+        venue: venue.name || game.venueName || match.venue,
+      },
+      onStart,
+    )
   }
 
   function startDemoGame(v: VenueNight, game: VenueGameFixture) {
-    startBuiltMatch(buildMatchFromFixture(v, game), onStart)
+    const boardVenueId = boardIdForMatch({ venue: v.name, boardVenueId: v.id })
+    startBuiltMatch({ ...buildMatchFromFixture(v, game), boardVenueId }, onStart)
   }
 
   const venueList = demoMode ? FNC_VENUES : liveVenues
@@ -276,6 +289,8 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
 /** Resolve a venue id from a match.venue string for return navigation. */
 export function venueIdFromMatchVenue(venue: string | undefined | null): string | null {
   if (!venue) return null
+  const boardId = boardIdForMatch({ venue })
+  if (isFncBoardVenueId(boardId)) return boardId
   const live = venueSlug(venue)
   if (live) return live
   return null

@@ -142,24 +142,42 @@ export function SpectatorBoard({ id }: Props) {
       try {
         const res = await fetch(`/api/board/${encodeURIComponent(id)}`, { cache: 'no-store' })
         if (!alive) return
-        if (res.ok) {
-          const data = (await res.json()) as BoardSnapshot
-          const prev = snapRef.current
-          // Ignore stale / out-of-order polls — they jump clocks upward on the TV.
-          if (!prev || data.updatedAt > prev.updatedAt) {
-            if (isShotClockReset(prev, data)) {
-              shotExpiredLocal.current = false
-              localShotHornPlayed.current = false
-              shotFloorRef.current = null
+        if (res.status === 404) {
+          if (snapRef.current) {
+            snapRef.current = null
+            setSnap(null)
+            shotFloorRef.current = null
+            clockFloorRef.current = null
+            shotExpiredLocal.current = false
+            periodExpiredLocal.current = false
+          }
+        } else if (res.ok) {
+          const data = (await res.json()) as BoardSnapshot & { cleared?: boolean }
+          if (data.cleared) {
+            snapRef.current = null
+            setSnap(null)
+            shotFloorRef.current = null
+            clockFloorRef.current = null
+            shotExpiredLocal.current = false
+            periodExpiredLocal.current = false
+          } else {
+            const prev = snapRef.current
+            // Ignore stale / out-of-order polls — they jump clocks upward on the TV.
+            if (!prev || data.updatedAt > prev.updatedAt) {
+              if (isShotClockReset(prev, data)) {
+                shotExpiredLocal.current = false
+                localShotHornPlayed.current = false
+                shotFloorRef.current = null
+              }
+              if (isPeriodClockReset(prev, data)) {
+                periodExpiredLocal.current = false
+                localPeriodHornPlayed.current = false
+                clockFloorRef.current = null
+              }
+              snapRef.current = data
+              setSnap(data)
+              setNow(Date.now())
             }
-            if (isPeriodClockReset(prev, data)) {
-              periodExpiredLocal.current = false
-              localPeriodHornPlayed.current = false
-              clockFloorRef.current = null
-            }
-            snapRef.current = data
-            setSnap(data)
-            setNow(Date.now())
           }
         }
       } catch {
@@ -228,7 +246,11 @@ export function SpectatorBoard({ id }: Props) {
   if (!snap) {
     return (
       <div className="board board-wait">
-        <p>Waiting for table…</p>
+        <div className="board-hub-bar" aria-hidden="true" />
+        <img className="fnc-logo board-wait-logo" src="/logo-fnc.jpg" alt="Far North Coast Water Polo" />
+        <h1 className="board-wait-title">Far North Coast Water Polo</h1>
+        <p className="board-wait-msg">Waiting for table…</p>
+        <p className="board-wait-hint">{id}</p>
       </div>
     )
   }
@@ -300,8 +322,15 @@ export function SpectatorBoard({ id }: Props) {
   const whiteFouls = snap.whiteFouls ?? []
   const blueFouls = snap.blueFouls ?? []
 
+  const metaParts = [snap.grade, snap.stage, snap.venueLabel].map((s) => (s || '').trim()).filter(Boolean)
+
   return (
     <div className="board">
+      {metaParts.length ? (
+        <div className="board-meta" title={snap.eventName || undefined}>
+          {metaParts.join(' · ')}
+        </div>
+      ) : null}
       <div className="board-names">
         <div className={`board-name white${snap.possession === 'white' ? ' has-ball' : ''}`}>
           <span className="board-side">White</span>

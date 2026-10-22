@@ -10,6 +10,12 @@
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
+  "kv_namespaces": [
+    {
+      "binding": "SCOREBOARD",
+      "id": "26e057bda256408d824a5d1d9dca92a2"
+    }
+  ],
   "routes": [
     {
       "pattern": "board.fncwp.com",

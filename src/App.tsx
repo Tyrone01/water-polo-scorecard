@@ -5,7 +5,7 @@ import { VenueNightScreen, venueIdFromMatchVenue } from './components/VenueNight
 import { demoMatch } from './demo'
 import { emptyTeam, newMatch } from './engine'
 import { clearMatch, loadAdmin, loadMatch, saveMatch } from './storage'
-import { publishBoard } from './boardPublish'
+import { boardIdForMatch, clearBoard, publishBoard } from './boardPublish'
 import type { Match } from './types'
 
 type Screen = 'venue' | 'setup' | 'live'
@@ -54,13 +54,20 @@ export function App() {
   }, [])
 
   function onClearNext() {
+    if (match) {
+      const resolved = boardIdForMatch(match)
+      const venueKey = match.boardVenueId || venueIdFromMatchVenue(match.venue) || resolved
+      if (venueKey) setLastVenueId(venueKey)
+      clearBoard(resolved)
+    }
     clearMatch()
     setMatchState(matchFromAdminDefaults())
     setScreen('venue')
   }
 
   function startLive(m: Match) {
-    const id = venueIdFromMatchVenue(m.venue)
+    const resolved = boardIdForMatch(m)
+    const id = m.boardVenueId || venueIdFromMatchVenue(m.venue) || resolved
     if (id) setLastVenueId(id)
     setMatchState(m)
     setScreen('live')

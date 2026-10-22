@@ -17,20 +17,36 @@ const boardId = rawId && BOARD_ID_RE.test(rawId) ? rawId : null
 const isBoardIndex = path === '/board' || (onPublicBoardHost && path === '/')
 const isBoardRoute = Boolean(boardMatch) || Boolean(shortMatch && isFncBoardVenueId(rawId || '')) || isBoardIndex
 
+const VENUE_LABELS: Record<string, string> = {
+  alstonville: 'Alstonville',
+  ballina: 'Ballina',
+  lismore: 'Lismore',
+  mullumbimby: 'Mullumbimby',
+}
+
 function BoardIndex() {
   return (
-    <div className="board board-wait">
-      <p>Open a pool board:</p>
-      <p>
-        {FNC_BOARD_VENUE_IDS.map((id, i) => (
-          <span key={id}>
-            {i > 0 ? ' · ' : null}
-            <a href={onPublicBoardHost ? `/${id}` : `/board/${id}`}>
-              {onPublicBoardHost ? `/${id}` : `/board/${id}`}
-            </a>
-          </span>
+    <div className="board board-hub">
+      <div className="board-hub-bar" aria-hidden="true" />
+      <header className="board-hub-header">
+        <img className="fnc-logo board-hub-logo" src="/logo-fnc.jpg" alt="Far North Coast Water Polo" />
+        <div className="board-hub-text">
+          <h1>Far North Coast Water Polo</h1>
+          <p className="board-hub-sub">Pool TV scoreboards — pick a venue</p>
+        </div>
+      </header>
+      <div className="board-hub-grid">
+        {FNC_BOARD_VENUE_IDS.map((id) => (
+          <a
+            key={id}
+            className="board-hub-card"
+            href={onPublicBoardHost ? `/${id}` : `/board/${id}`}
+          >
+            <strong>{VENUE_LABELS[id] ?? id}</strong>
+            <span className="board-hub-path">{onPublicBoardHost ? `/${id}` : `/board/${id}`}</span>
+          </a>
         ))}
-      </p>
+      </div>
     </div>
   )
 }

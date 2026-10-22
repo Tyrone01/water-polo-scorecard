@@ -23,6 +23,12 @@ describe('board snapshot', () => {
     expect(boardUrl('https://board.fncwp.com', 'alstonville')).toBe('https://board.fncwp.com/alstonville')
     expect(publicBoardUrl('ballina')).toBe('https://board.fncwp.com/ballina')
     expect(boardIdForMatch({ venue: 'Alstonville Pool' })).toBe('alstonville')
+    expect(boardIdForMatch({ venue: 'Alstonville Aquatic Centre' })).toBe('alstonville')
+    expect(boardIdForMatch({ venue: 'alstonville-aquatic' })).toBe('alstonville')
+    expect(boardIdForMatch({ venue: 'Ballina Indoor Pool' })).toBe('ballina')
+    expect(boardIdForMatch({ venue: 'Lismore Memorial Baths' })).toBe('lismore')
+    expect(boardIdForMatch({ venue: 'Mullumbimby Pool' })).toBe('mullumbimby')
+    expect(boardIdForMatch({ venue: 'Somewhere Else' })).toBe('somewhere-else')
     expect(snap.breakKind).toBeNull()
     expect(snap.breakRunning).toBe(false)
     expect(snap.breakRemainingSec).toBe(0)
@@ -115,5 +121,45 @@ describe('board snapshot', () => {
     expect(snap.whiteRoster).toHaveLength(10)
     expect(snap.blueRoster).toHaveLength(10)
     expect(snap.last.some((e) => e.code === 'G' && e.cap === '4')).toBe(true)
+  })
+})
+
+describe('boardIdForMatch FNC venues', () => {
+  it('maps long FNC venue slugs and names to fixed TV ids', () => {
+    expect(boardIdForMatch({ venue: 'Alstonville Aquatic' })).toBe('alstonville')
+    expect(boardIdForMatch({ venue: 'ballina-indoor' })).toBe('ballina')
+    expect(boardIdForMatch({ venue: 'LISMORE' })).toBe('lismore')
+    expect(boardIdForMatch({ venue: 'Mullumbimby Leisure Centre' })).toBe('mullumbimby')
+  })
+})
+
+describe('boardVenueId override', () => {
+  it('uses boardVenueId over a mismatched venue name', () => {
+    expect(boardIdForMatch({ venue: 'Somewhere else', boardVenueId: 'ballina' })).toBe('ballina')
+    expect(boardIdForMatch({ venue: 'Alstonville Aquatic Centre', boardVenueId: 'lismore' })).toBe('lismore')
+    expect(boardIdForMatch({ venue: 'Random Hall', boardVenueId: 'mullumbimby' })).toBe('mullumbimby')
+  })
+
+  it('maps a long boardVenueId slug to the fixed FNC TV id', () => {
+    expect(boardIdForMatch({ venue: 'x', boardVenueId: 'alstonville-aquatic' })).toBe('alstonville')
+  })
+})
+
+describe('board snapshot meta', () => {
+  it('includes grade, stage, eventName, venueLabel from the match', () => {
+    const m = {
+      ...demoMatch(),
+      grade: '16&U Girls',
+      stage: 'Round 3',
+      eventName: 'FNC Juniors',
+      venue: 'Alstonville Aquatic Centre',
+      boardVenueId: 'alstonville',
+    }
+    const snap = buildBoardSnapshot(m)
+    expect(snap.grade).toBe('16&U Girls')
+    expect(snap.stage).toBe('Round 3')
+    expect(snap.eventName).toBe('FNC Juniors')
+    expect(snap.venueLabel).toBe('Alstonville Aquatic Centre')
+    expect(boardIdForMatch(m)).toBe('alstonville')
   })
 })

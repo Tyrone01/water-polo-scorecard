@@ -62,6 +62,13 @@ export interface BoardSnapshot {
   started: boolean
   whiteRoster: BoardRosterPlayer[]
   blueRoster: BoardRosterPlayer[]
+  /** Optional game meta so the pool TV shows which match the table is covering. */
+  grade?: string
+  stage?: string
+  eventName?: string
+  venueLabel?: string
+  /** Tombstone: table cleared this board; TV should show wait state. */
+  cleared?: boolean
 }
 
 function rosterOf(team: Team): BoardRosterPlayer[] {
@@ -80,7 +87,8 @@ function foulSummaries(team: Team): BoardFoulSummary[] {
   return rows
 }
 
-function venueSlugForBoard(name: string): string {
+/** Slugify a venue name the same way as revsport/sync `venueSlug`. */
+export function venueSlugForBoard(name: string): string {
   return name
     .toLowerCase()
     .replace(/aquatic centre|indoor pool|pool|leisure centre/gi, '')
@@ -89,9 +97,34 @@ function venueSlugForBoard(name: string): string {
     .slice(0, 48) || 'venue'
 }
 
-/** Board id from match.venue (alstonville, ballina, …); falls back to live. */
-export function boardIdForMatch(match: Pick<Match, 'venue'>): string {
+function fncIdFromCandidate(raw: string): FncBoardVenueId | null {
+  const lower = raw.trim().toLowerCase()
+  if (!lower) return null
+  for (const id of FNC_BOARD_VENUE_IDS) {
+    if (lower === id || lower.startsWith(`${id}-`) || lower.startsWith(`${id} `) || lower.includes(id)) {
+      return id
+    }
+  }
+  return null
+}
+
+/**
+ * Board id for the venue TV.
+ * Prefer explicit `boardVenueId` (from VenueNightScreen) when it is a known FNC
+ * id or a valid BOARD_ID_RE slug; else fall back to venue name/slug heuristics.
+ * Known FNC ids win over longer RevSport slugs such as `alstonville-aquatic`.
+ */
+export function boardIdForMatch(match: Pick<Match, 'venue' | 'boardVenueId'>): string {
+  const override = (match.boardVenueId || '').trim()
+  if (override) {
+    const fnc = fncIdFromCandidate(override)
+    if (fnc) return fnc
+    if (BOARD_ID_RE.test(override)) return override
+  }
+  const raw = (match.venue || '').trim().toLowerCase()
   const slug = venueSlugForBoard(match.venue || '')
+  const fromVenue = fncIdFromCandidate(raw) || fncIdFromCandidate(slug)
+  if (fromVenue) return fromVenue
   if (slug && BOARD_ID_RE.test(slug)) return slug
   return LIVE_BOARD_ID
 }
@@ -127,7 +160,7 @@ export function buildBoardSnapshot(match: Match, now = Date.now()): BoardSnapsho
     if (e.score) row.score = e.score
     return row
   })
-  return {
+  const snap: BoardSnapshot = {
     v: 1,
     updatedAt: now,
     whiteName: match.white.name,
@@ -152,10 +185,24 @@ export function buildBoardSnapshot(match: Match, now = Date.now()): BoardSnapsho
     whiteRoster: rosterOf(match.white),
     blueRoster: rosterOf(match.blue),
   }
+  if (match.grade) snap.grade = match.grade
+  if (match.stage) snap.stage = match.stage
+  if (match.eventName) snap.eventName = match.eventName
+  if (match.venue) snap.venueLabel = match.venue
+  return snap
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null
 let pending: Match | null = null
+
+function postBoardSnapshot(id: string, body: string): Promise<Response> {
+  const headers = { 'Content-Type': 'application/json' }
+  const publicUrl = `${PUBLIC_BOARD_ORIGIN}/api/board/${encodeURIComponent(id)}`
+  return fetch(publicUrl, { method: 'POST', headers, body }).catch(() =>
+    /* Offline / no route to board.fncwp.com — same-origin Vite or workers.dev */
+    fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'POST', headers, body }),
+  )
+}
 
 function flush(): void {
   timer = null
@@ -164,11 +211,7 @@ function flush(): void {
   if (!match) return
   const body = JSON.stringify(buildBoardSnapshot(match))
   const id = boardIdForMatch(match)
-  void fetch(`/api/board/${encodeURIComponent(id)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-  }).catch(() => {
+  void postBoardSnapshot(id, body).catch(() => {
     /* tablet scoring still works if the board API is down */
   })
 }
@@ -190,4 +233,29 @@ export function publishBoard(match: Match): void {
   }
   if (timer != null) return
   timer = setTimeout(flush, 400)
+}
+
+function deleteBoardSnapshot(id: string): Promise<Response> {
+  const publicUrl = `${PUBLIC_BOARD_ORIGIN}/api/board/${encodeURIComponent(id)}`
+  return fetch(publicUrl, { method: 'DELETE' }).catch(() =>
+    fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  )
+}
+
+/**
+ * Clear a pool TV board so GET returns 404 / wait state.
+ * Cancels any pending publish for the same id first.
+ */
+export function clearBoard(boardId: string): void {
+  const id = BOARD_ID_RE.test(boardId) ? boardId : LIVE_BOARD_ID
+  if (pending && boardIdForMatch(pending) === id) {
+    pending = null
+    if (timer != null) {
+      clearTimeout(timer)
+      timer = null
+    }
+  }
+  void deleteBoardSnapshot(id).catch(() => {
+    /* clearing is best-effort; tablet still returns to venues */
+  })
 }

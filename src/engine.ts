@@ -94,6 +94,7 @@ export function newMatch(partial: Partial<Match> = {}): Match {
     eventName: partial.eventName ?? '',
     stage: partial.stage ?? 'Round',
     venue: partial.venue ?? '',
+    ...(partial.boardVenueId ? { boardVenueId: partial.boardVenueId } : {}),
     grade: partial.grade ?? '16&U',
     date: partial.date ?? new Date().toISOString().slice(0, 10),
     startTime: partial.startTime ?? '18:00',

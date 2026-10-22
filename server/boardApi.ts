@@ -1,17 +1,27 @@
 /**
  * Shareable spectator board snapshots.
  *
- * Storage: Worker in-memory Map keyed by board id (not a Durable Object).
- * Temp-worker / workers.dev deploys may not reliably run `new_sqlite_classes`
- * migrations. The HTTP contract is the same if we later bind ScoreboardRoom as BOARD.
+ * Storage: Cloudflare KV when `env.SCOREBOARD` is bound (production Worker).
+ * Falls back to an in-memory Map for Vite local dev (handleBoardRequest without env).
  */
 const BOARD_ID_RE = /^[a-zA-Z0-9_-]{4,40}$/
 
 const boards = new Map<string, unknown>()
 
+/** Minimal KV interface so we do not depend on @cloudflare/workers-types in the Vite build. */
+export interface BoardKvNamespace {
+  get(key: string, type?: 'text' | 'json'): Promise<string | null>
+  put(key: string, value: string): Promise<void>
+  delete?(key: string): Promise<void>
+}
+
+export interface BoardEnv {
+  SCOREBOARD?: BoardKvNamespace
+}
+
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, PUT, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
@@ -26,8 +36,53 @@ function json(status: number, body: unknown): Response {
   })
 }
 
-/** Handle GET/PUT/POST/OPTIONS `/api/board/:id`. Returns null if the path is not a board API route. */
-export async function handleBoardRequest(request: Request): Promise<Response | null> {
+async function readBoard(id: string, env?: BoardEnv): Promise<unknown | undefined> {
+  const kv = env?.SCOREBOARD
+  if (kv) {
+    const text = await kv.get(id, 'text')
+    if (text == null) return undefined
+    try {
+      return JSON.parse(text) as unknown
+    } catch {
+      return undefined
+    }
+  }
+  return boards.get(id)
+}
+
+async function writeBoard(id: string, body: unknown, env?: BoardEnv): Promise<void> {
+  const kv = env?.SCOREBOARD
+  if (kv) {
+    await kv.put(id, JSON.stringify(body))
+    return
+  }
+  boards.set(id, body)
+}
+
+async function deleteBoard(id: string, env?: BoardEnv): Promise<void> {
+  const kv = env?.SCOREBOARD
+  if (kv) {
+    if (typeof kv.delete === 'function') {
+      await kv.delete(id)
+    } else {
+      /* No delete — overwrite with cleared sentinel so GET still yields wait state via client. */
+      await kv.put(id, JSON.stringify({ v: 1, cleared: true, updatedAt: Date.now() }))
+    }
+    return
+  }
+  boards.delete(id)
+}
+
+/**
+ * Handle GET/PUT/POST/OPTIONS `/api/board/:id`.
+ * Pass `env` from the Worker so snapshots persist in KV across isolates.
+ * Vite middleware can omit env (Map-backed localdev).
+ * Returns null if the path is not a board API route.
+ */
+export async function handleBoardRequest(
+  request: Request,
+  env?: BoardEnv,
+): Promise<Response | null> {
   const url = new URL(request.url)
   const m = url.pathname.match(/^\/api\/board\/([^/]+)$/)
   if (!m) return null
@@ -42,8 +97,11 @@ export async function handleBoardRequest(request: Request): Promise<Response | n
   }
 
   if (request.method === 'GET') {
-    const snap = boards.get(id)
-    if (!snap) return json(404, { error: 'no board' })
+    const snap = await readBoard(id, env)
+    if (snap === undefined) return json(404, { error: 'no board' })
+    if (snap && typeof snap === 'object' && (snap as { cleared?: boolean }).cleared) {
+      return json(404, { error: 'no board' })
+    }
     return json(200, snap)
   }
 
@@ -54,9 +112,14 @@ export async function handleBoardRequest(request: Request): Promise<Response | n
     } catch {
       return json(400, { error: 'invalid json' })
     }
-    boards.set(id, body)
+    await writeBoard(id, body, env)
     return json(200, { ok: true })
   }
 
-  return json(405, { error: 'GET, PUT, POST only' })
+  if (request.method === 'DELETE') {
+    await deleteBoard(id, env)
+    return json(200, { ok: true })
+  }
+
+  return json(405, { error: 'GET, PUT, POST, DELETE only' })
 }

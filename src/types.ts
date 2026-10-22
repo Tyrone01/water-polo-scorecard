@@ -74,6 +74,8 @@ export interface Match {
   eventName: string
   stage: string
   venue: string
+  /** Explicit pool TV board id (e.g. alstonville). Wins over venue name heuristics. */
+  boardVenueId?: string
   grade: string
   date: string
   startTime: string
