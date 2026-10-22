@@ -13,8 +13,14 @@ const onPublicBoardHost = host === 'board.fncwp.com'
 const boardMatch = path.match(/^\/board(?:\/([^/]+))?$/)
 /** Where scorers go to pick a pool and that night's games (the scorer app, not a TV board). */
 const SCORE_PATH = '/score'
+/**
+ * On the TV host, scorers go to the main scorer address so saved games and Google
+ * sign-in stay in one place. A build can override it with VITE_SCORER_ORIGIN.
+ */
+const envScorer = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_SCORER_ORIGIN
+const SCORER_ORIGIN = (envScorer ?? 'https://water-polo-scorecard.tyrone-mcgillick.workers.dev').replace(/\/$/, '')
 const isScorePath = path === SCORE_PATH
-const shortMatch = onPublicBoardHost && !isScorePath ? path.match(/^\/([a-z0-9_-]{4,40})$/) : null
+const shortMatch = onPublicBoardHost && !isScorePath && !boardMatch ? path.match(/^\/([a-z0-9_-]{4,40})$/) : null
 const rawId = boardMatch?.[1] || shortMatch?.[1] || null
 const boardId = rawId && BOARD_ID_RE.test(rawId) ? rawId : null
 const isBoardIndex = path === '/board' || (onPublicBoardHost && path === '/')
@@ -28,9 +34,25 @@ const VENUE_LABELS: Record<string, string> = {
 }
 
 function BoardIndex() {
-  const [venueId, setVenueId] = React.useState<string | null>(null)
+  // Pool lives in the URL (?pool=alstonville) so the phone's Back button steps
+  // scorer -> choices -> pool picker instead of leaving the site.
+  const poolFromUrl = () => {
+    const v = (new URLSearchParams(window.location.search).get('pool') || '').toLowerCase()
+    return isFncBoardVenueId(v) ? v : null
+  }
+  const [venueId, setVenueIdState] = React.useState<string | null>(poolFromUrl)
+  React.useEffect(() => {
+    const onPop = () => setVenueIdState(poolFromUrl())
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+  const setVenueId = (id: string | null) => {
+    if (id) window.history.pushState(null, '', `${window.location.pathname}?pool=${encodeURIComponent(id)}`)
+    else if (poolFromUrl()) window.history.back()
+    setVenueIdState(id)
+  }
   const label = venueId ? VENUE_LABELS[venueId] ?? venueId : ''
-  const scoreHref = venueId ? `${onPublicBoardHost ? SCORE_PATH : '/'}?venue=${encodeURIComponent(venueId)}` : '#'
+  const scoreHref = venueId ? `${onPublicBoardHost ? (SCORER_ORIGIN ? `${SCORER_ORIGIN}/` : SCORE_PATH) : '/'}?venue=${encodeURIComponent(venueId)}` : '#'
   const boardHref = venueId ? (onPublicBoardHost ? `/${venueId}` : `/board/${venueId}`) : '#'
   return (
     <div className="board board-hub">
@@ -39,7 +61,7 @@ function BoardIndex() {
         <img className="fnc-logo board-hub-logo" src="/logo-fnc.jpg" alt="Far North Coast Water Polo" />
         <div className="board-hub-text">
           <h1>Far North Coast Water Polo</h1>
-          <p className="board-hub-sub">{venueId ? `${label}: what are you doing?` : 'Which pool are you at?'}</p>
+          <p className="board-hub-sub">{venueId ? `${label}: what do you need?` : 'Which pool are you at?'}</p>
         </div>
       </header>
       {!venueId ? (
