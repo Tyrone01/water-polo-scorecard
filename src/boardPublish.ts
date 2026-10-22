@@ -8,8 +8,13 @@ export const BOARD_ID_RE = /^[a-zA-Z0-9_-]{4,40}$/
 export const LIVE_BOARD_ID = 'live'
 
 
-/** Public TV host (custom domain). Short paths: /alstonville not /board/alstonville. */
-export const PUBLIC_BOARD_ORIGIN = 'https://board.fncwp.com'
+/**
+ * Public TV host (custom domain). Short paths: /alstonville not /board/alstonville.
+ * A build can set VITE_PUBLIC_BOARD_ORIGIN (empty = this site only), so previews and
+ * other hosts never post to the live pool boards.
+ */
+const envBoardOrigin = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_PUBLIC_BOARD_ORIGIN
+export const PUBLIC_BOARD_ORIGIN = (envBoardOrigin ?? 'https://board.fncwp.com').replace(/\/$/, '')
 
 export const FNC_BOARD_VENUE_IDS = ['alstonville', 'ballina', 'lismore', 'mullumbimby'] as const
 export type FncBoardVenueId = (typeof FNC_BOARD_VENUE_IDS)[number]
@@ -145,7 +150,8 @@ export function boardUrl(origin: string, boardId: string = LIVE_BOARD_ID): strin
 
 /** Prefer the public board host for Setup / Open board links when the tablet is on workers.dev. */
 export function publicBoardUrl(boardId: string): string {
-  return boardUrl(PUBLIC_BOARD_ORIGIN, boardId)
+  const origin = PUBLIC_BOARD_ORIGIN || (typeof location !== 'undefined' ? location.origin : '')
+  return boardUrl(origin, boardId)
 }
 
 export function buildBoardSnapshot(match: Match, now = Date.now()): BoardSnapshot {
@@ -197,6 +203,7 @@ let pending: Match | null = null
 
 function postBoardSnapshot(id: string, body: string): Promise<Response> {
   const headers = { 'Content-Type': 'application/json' }
+  if (!PUBLIC_BOARD_ORIGIN) return fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'POST', headers, body })
   const publicUrl = `${PUBLIC_BOARD_ORIGIN}/api/board/${encodeURIComponent(id)}`
   return fetch(publicUrl, { method: 'POST', headers, body }).catch(() =>
     /* Offline / no route to board.fncwp.com — same-origin Vite or workers.dev */
@@ -236,6 +243,7 @@ export function publishBoard(match: Match): void {
 }
 
 function deleteBoardSnapshot(id: string): Promise<Response> {
+  if (!PUBLIC_BOARD_ORIGIN) return fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'DELETE' })
   const publicUrl = `${PUBLIC_BOARD_ORIGIN}/api/board/${encodeURIComponent(id)}`
   return fetch(publicUrl, { method: 'DELETE' }).catch(() =>
     fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'DELETE' }),

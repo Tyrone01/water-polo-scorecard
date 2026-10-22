@@ -6,6 +6,7 @@ import { demoMatch } from './demo'
 import { emptyTeam, newMatch } from './engine'
 import { clearMatch, loadAdmin, loadMatch, saveMatch } from './storage'
 import { boardIdForMatch, clearBoard, publishBoard } from './boardPublish'
+import { mergeTeamById } from './importApply'
 import type { Match } from './types'
 
 type Screen = 'venue' | 'setup' | 'live'
@@ -66,6 +67,34 @@ export function App() {
   }
 
   function startLive(m: Match) {
+    const cur = match
+    // A game picked again from the venue list (new id) while the current game is still open.
+    const openGame =
+      cur && cur.id !== m.id && cur.started && !cur.ended &&
+      (cur.events.length > 0 || [...cur.white.players, ...cur.blue.players].some((p) => !p.revsportId))
+    if (openGame && cur.revsport?.gameId && cur.revsport.gameId === m.revsport?.gameId) {
+      // Same RevSport game: carry on scoring. Rosters refresh by RevSport team/player id only,
+      // so goals, fouls, the clock and players typed in by hand are all kept.
+      const resumed: Match = {
+        ...cur,
+        white: mergeTeamById(cur.white, m.white),
+        blue: mergeTeamById(cur.blue, m.blue),
+        boardVenueId: m.boardVenueId || cur.boardVenueId,
+      }
+      setMatchState(resumed)
+      setScreen('live')
+      publishBoard(resumed)
+      return
+    }
+    if (
+      openGame && cur.events.length > 0 &&
+      !window.confirm(
+        `${cur.white.name} vs ${cur.blue.name} is not finished. Start ${m.white.name} vs ${m.blue.name} and clear its scores?`,
+      )
+    ) {
+      setScreen('live')
+      return
+    }
     const resolved = boardIdForMatch(m)
     const id = m.boardVenueId || venueIdFromMatchVenue(m.venue) || resolved
     if (id) setLastVenueId(id)

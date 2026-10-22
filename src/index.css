@@ -1256,3 +1256,20 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   .shot-rail-actions .btn.shot-primary { min-height: 56px; font-size: 20px; }
   .clock.rail-shot-digits { font-size: clamp(56px, 10vh, 96px); }
 }
+
+/* Team with no public RevSport player list */
+.roster-note {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fff4d6;
+  color: #5a4300;
+  border: 1px solid #f0d27a;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+.team-panel.compact .roster-note {
+  margin: 4px;
+  padding: 6px 8px;
+  font-size: 0.8rem;
+}

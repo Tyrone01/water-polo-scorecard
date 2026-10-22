@@ -4,16 +4,28 @@
  */
 
 import { AGE_PERIOD_MINUTES, type AgeGroup, type Match, type MatchMode } from '../types'
-import { emptyTeam, newMatch, periodLengthSec } from '../engine'
-import { importMetaPatch, importedTeamToTeam } from '../importApply'
-import { expandPendingRounds, fetchRevSport, type Result } from './client'
+import { newMatch, periodLengthSec } from '../engine'
+import {
+  assignSidesById,
+  importMetaPatch,
+  importedTeamToTeam,
+  placeholderTeam,
+  revsportRefFrom,
+} from '../importApply'
+import { expandPendingRounds, fetchRevSport, rosterMissingNote, type Result } from './client'
+import type { RevSportClubId } from './clubs'
+import { compDecision, compDecisionNote } from './compIds'
+import { sydneyTodayISO } from './dates'
+import { competitionIdFromUrl, gameIdFromUrl, teamIdFromUrl } from './ids'
 import type { ImportedGame, ImportedGrade } from './parser'
 
 export const FNC_GAMES_HUB = 'https://www.fncwaterpolo.org.au/games'
 
 export interface LiveCompetition {
-  /** Path id e.g. "27655/39100" */
+  /** Path id e.g. "27800/3790" (competition / grade) */
   id: string
+  /** RevSport competition id, e.g. "27800" */
+  competitionId?: string
   label: string
   competition: string
   grade: string
@@ -35,6 +47,17 @@ export interface LiveGame {
   grade?: string
   round?: string
   referees?: string
+  /** RevSport ids. Home plays White, away plays Blue. */
+  competitionId?: string
+  homeTeamId?: string
+  awayTeamId?: string
+}
+
+export interface HeldBackCompetition {
+  competitionId?: string
+  label: string
+  url: string
+  reason: 'excluded' | 'not-listed'
 }
 
 export interface LiveVenue {
@@ -51,6 +74,8 @@ export interface SyncSnapshot {
   competitions: LiveCompetition[]
   games: LiveGame[]
   venues: LiveVenue[]
+  /** Competitions on the hub that were not loaded (by RevSport id). */
+  heldBack: HeldBackCompetition[]
   warnings: string[]
   error?: string
 }
@@ -85,15 +110,18 @@ export function shortVenueName(name: string): string {
   return cleaned || name
 }
 
-function competitionIdFromUrl(url: string): string {
+function gradePathId(url: string): string {
   const m = url.match(/\/games\/(\d+\/\d+)/i)
   return m ? m[1] : venueSlug(url)
 }
 
 function toLiveGame(g: ImportedGame, meta: { competition?: string; grade?: string; round?: string }): LiveGame {
-  const idMatch = g.detailsUrl.match(/\/game\/(\d+)/i)
+  const gameId = g.gameId || gameIdFromUrl(g.detailsUrl)
+  const homeTeamId = g.homeTeamId || teamIdFromUrl(g.homeTeamUrl)
+  const awayTeamId = g.awayTeamId || teamIdFromUrl(g.awayTeamUrl)
+  const competitionId = g.competitionId || competitionIdFromUrl(g.homeTeamUrl)
   return {
-    id: idMatch?.[1] || g.detailsUrl,
+    id: gameId || g.detailsUrl,
     home: g.home,
     away: g.away,
     date: g.date,
@@ -104,8 +132,11 @@ function toLiveGame(g: ImportedGame, meta: { competition?: string; grade?: strin
     awayTeamUrl: g.awayTeamUrl,
     competition: meta.competition,
     grade: meta.grade,
-    round: meta.round,
+    round: g.round || meta.round,
     referees: g.referees,
+    ...(competitionId ? { competitionId } : {}),
+    ...(homeTeamId ? { homeTeamId } : {}),
+    ...(awayTeamId ? { awayTeamId } : {}),
   }
 }
 
@@ -175,8 +206,33 @@ async function loadGradeGames(grade: ImportedGrade): Promise<{
   }
 }
 
+/**
+ * Games from today (Sydney) onwards, so last week's games are not listed next to
+ * tonight's. If nothing is ahead (end of season), every game stays listed.
+ */
+export function gamesFromToday(games: LiveGame[], todayISO = sydneyTodayISO()): LiveGame[] {
+  const ahead = games.filter((g) => !g.date || g.date >= todayISO)
+  return ahead.length ? ahead : games
+}
+
+/** Split hub grades into the ones to load and the ones held back, by RevSport competition id only. */
+export function filterGradesById(
+  grades: ImportedGrade[],
+  club: RevSportClubId | '',
+): { load: ImportedGrade[]; heldBack: HeldBackCompetition[] } {
+  const load: ImportedGrade[] = []
+  const heldBack: HeldBackCompetition[] = []
+  for (const g of grades) {
+    const competitionId = competitionIdFromUrl(g.url)
+    const decision = compDecision(club, competitionId)
+    if (decision === 'load') load.push(g)
+    else heldBack.push({ competitionId, label: g.label, url: g.url, reason: decision })
+  }
+  return { load, heldBack }
+}
+
 /** Fetch all FNC competitions / grades / fixtures and group by venue. */
-export async function syncFncLive(hubUrl = FNC_GAMES_HUB): Promise<SyncSnapshot> {
+export async function syncFncLive(hubUrl = FNC_GAMES_HUB, club: RevSportClubId | '' = 'FNC'): Promise<SyncSnapshot> {
   const fetchedAt = new Date().toISOString()
   const warnings: string[] = []
   const hub = await fetchRevSport(hubUrl)
@@ -188,13 +244,19 @@ export async function syncFncLive(hubUrl = FNC_GAMES_HUB): Promise<SyncSnapshot>
       competitions: [],
       games: [],
       venues: [],
+      heldBack: [],
       warnings,
       error: hub.fetchError,
     }
   }
 
-  const grades = gradesFromHub(hub, hubUrl)
+  const allGrades = gradesFromHub(hub, hubUrl)
+  const { load: grades, heldBack } = filterGradesById(allGrades, club)
+  for (const h of heldBack) warnings.push(compDecisionNote(h.reason, h.competitionId, h.label))
   if (!grades.length) {
+    const none = allGrades.length
+      ? 'None of the competitions on the games page are on the scorecard\'s list.'
+      : 'No competitions/grades found on the FNC games hub.'
     return {
       hubUrl,
       fetchedAt,
@@ -202,8 +264,9 @@ export async function syncFncLive(hubUrl = FNC_GAMES_HUB): Promise<SyncSnapshot>
       competitions: [],
       games: [],
       venues: [],
-      warnings: [...warnings, ...(hub.warnings || []), 'No competitions/grades found on the FNC games hub.'],
-      error: 'No grades found',
+      heldBack,
+      warnings: [...warnings, ...(hub.warnings || []), none],
+      error: allGrades.length ? none : 'No grades found',
     }
   }
 
@@ -220,16 +283,18 @@ export async function syncFncLive(hubUrl = FNC_GAMES_HUB): Promise<SyncSnapshot>
     warnings.push(...loaded.warnings)
     const label =
       [loaded.competition, loaded.gradeLabel].filter(Boolean).join(' · ') || grade.label
+    const competitionId = competitionIdFromUrl(grade.url)
     competitions.push({
-      id: competitionIdFromUrl(grade.url),
+      id: gradePathId(grade.url),
+      ...(competitionId ? { competitionId } : {}),
       label,
       competition: loaded.competition || hub.competition || '',
       grade: loaded.gradeLabel,
       url: grade.url,
     })
     for (const g of loaded.games) {
-      if (seenGame.has(g.detailsUrl)) continue
-      seenGame.add(g.detailsUrl)
+      if (seenGame.has(g.id)) continue
+      seenGame.add(g.id)
       games.push(g)
     }
   }
@@ -245,7 +310,8 @@ export async function syncFncLive(hubUrl = FNC_GAMES_HUB): Promise<SyncSnapshot>
     eventName,
     competitions,
     games,
-    venues: groupGamesByVenue(games),
+    venues: groupGamesByVenue(gamesFromToday(games)),
+    heldBack,
     warnings: warnings.filter(Boolean),
   }
 }
@@ -261,11 +327,20 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
   const stage = result.round || game.round || ''
   const ageGroup = inferAgeGroup(grade)
   const mode = inferMode(stage)
-  const teams = result.teams.map(importedTeamToTeam)
-  const white = teams[0] || emptyTeam(game.home)
-  const blue = teams[1] || emptyTeam(game.away)
-  if (!teams[0]) white.name = game.home
-  if (!teams[1]) blue.name = game.away
+  // Sides by RevSport team id only: home plays White, away plays Blue.
+  const sides = assignSidesById(result.teams, game.homeTeamId, game.awayTeamId)
+  const warnings = [...(result.warnings || []), ...sides.warnings]
+  if (!game.homeTeamId && !game.awayTeamId) {
+    warnings.push('This fixture has no RevSport team ids, so White and Blue were left empty. Add the teams in Setup.')
+  }
+  const white = sides.white ? importedTeamToTeam(sides.white) : placeholderTeam(game.home, game.homeTeamId)
+  const blue = sides.blue ? importedTeamToTeam(sides.blue) : placeholderTeam(game.away, game.awayTeamId)
+  if (!white.name) white.name = game.home || 'White'
+  if (!blue.name) blue.name = game.away || 'Blue'
+  for (const t of [white, blue]) {
+    const note = rosterMissingNote(t.name)
+    if (t.rosterMissing && !warnings.includes(note)) warnings.push(note)
+  }
 
   const base = newMatch({
     eventName: [result.competition || game.competition, grade].filter(Boolean).join(' · ') || 'FNC Water Polo',
@@ -279,6 +354,7 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
     white,
     blue,
     sourceUrl: game.detailsUrl,
+    revsport: revsportRefFrom(result, { gameId: gameIdFromUrl(game.detailsUrl) || game.id, ...game }),
     currentPeriod: 1,
     clockRemainingSec: periodLengthSec(ageGroup, 1),
     started: false,
@@ -288,5 +364,5 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
   // Prefer full venue from match-info over card short name.
   if (result.venue) patched.venue = result.venue
 
-  return { match: patched, warnings: result.warnings || [] }
+  return { match: patched, warnings }
 }
