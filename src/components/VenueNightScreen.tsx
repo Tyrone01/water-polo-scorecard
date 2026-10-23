@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { FNC_VENUES, buildMatchFromFixture, type VenueGameFixture, type VenueNight } from '../demo'
 import { quarterLengthSec, uid } from '../engine'
 import {
-  FNC_GAMES_HUB,
   loadLiveMatch,
-  syncFncLive,
+  syncVenueNightLive,
   venueSlug,
   type LiveGame,
   type LiveVenue,
@@ -18,6 +17,12 @@ interface Props {
   onAdvanced: () => void
   /** When returning from a finished game, land on this venue's game list. */
   initialVenueId?: string | null
+}
+
+/** "FNC", "AJWP" or "FNC and AJWP", from the games that actually loaded. */
+function liveSourceLabel(games: LiveGame[]): string {
+  const sources = [...new Set(games.map((g) => g.source || 'FNC'))]
+  return sources.length ? sources.join(' and ') : 'FNC'
 }
 
 function formatNightDate(iso: string): string {
@@ -59,7 +64,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
     setLoadError(null)
     setUseDemo(false)
     try {
-      const next = await syncFncLive(FNC_GAMES_HUB)
+      const next = await syncVenueNightLive()
       setSnap(next)
       if (next.error || !next.venues.length) {
         setLoadError(next.error || 'No fixtures found on FNC.')
@@ -100,7 +105,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
   async function startLiveGame(game: LiveGame) {
     if (!venue) return
     setStartingId(game.id)
-    setStartMsg('Loading teams and venue from FNC…')
+    setStartMsg(`Loading teams and venue from ${game.source || 'FNC'}…`)
     const { match, error, warnings } = await loadLiveMatch(game)
     setStartingId(null)
     if (!match || error) {
@@ -140,7 +145,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
             {!demoMode && snap ? (
               <>
                 <br />
-                Live from FNC · {snap.games.length} game{snap.games.length === 1 ? '' : 's'}
+                Live from {liveSourceLabel(snap.games)} · {snap.games.length} game{snap.games.length === 1 ? '' : 's'}
               </>
             ) : null}
           </p>
@@ -149,8 +154,8 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
 
       {loading ? (
         <section className="card venue-pick">
-          <h2>Loading FNC fixtures…</h2>
-          <p className="muted">Pulling competitions, games and venues from fncwaterpolo.org.au</p>
+          <h2>Loading fixtures…</h2>
+          <p className="muted">Pulling competitions, games and venues from FNC and AJWP on RevSport</p>
         </section>
       ) : null}
 
@@ -188,6 +193,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
             </p>
           ) : null}
           {demoMode ? <p className="muted">Demo data — not live FNC.</p> : null}
+          {snap?.notice && !demoMode ? <p className="muted" role="status">{snap.notice}</p> : null}
           {snap?.warnings?.length && !demoMode ? (
             <p className="muted">{snap.warnings.slice(0, 2).join(' ')}</p>
           ) : null}
@@ -228,6 +234,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
               <p className="muted">{venue.name}</p>
             </div>
           </div>
+          {snap?.notice && !demoMode ? <p className="muted" role="status">{snap.notice}</p> : null}
           {startMsg ? <p className="muted">{startMsg}</p> : null}
           <div className="game-night-list">
             {demoMode
@@ -272,7 +279,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
                           {g.home} <span className="vs">vs</span> {g.away}
                         </strong>
                         <span className="muted">
-                          {[g.grade, g.round, g.date ? formatNightDate(g.date) : '']
+                          {[g.source === 'AJWP' ? 'AJWP' : '', g.grade, g.round, g.date ? formatNightDate(g.date) : '']
                             .filter(Boolean)
                             .join(' · ')}
                         </span>
