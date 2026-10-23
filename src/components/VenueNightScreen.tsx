@@ -193,6 +193,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
             </p>
           ) : null}
           {demoMode ? <p className="muted">Demo data — not live FNC.</p> : null}
+          {snap?.notice && !demoMode ? <p className="muted" role="status">{snap.notice}</p> : null}
           {snap?.warnings?.length && !demoMode ? (
             <p className="muted">{snap.warnings.slice(0, 2).join(' ')}</p>
           ) : null}
@@ -233,6 +234,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
               <p className="muted">{venue.name}</p>
             </div>
           </div>
+          {snap?.notice && !demoMode ? <p className="muted" role="status">{snap.notice}</p> : null}
           {startMsg ? <p className="muted">{startMsg}</p> : null}
           <div className="game-night-list">
             {demoMode

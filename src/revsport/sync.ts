@@ -83,6 +83,8 @@ export interface SyncSnapshot {
   /** Competitions on the hub that were not loaded (by RevSport id). */
   heldBack: HeldBackCompetition[]
   warnings: string[]
+  /** Plain-English note when one association could not be loaded (shown on every list view). */
+  notice?: string
   error?: string
 }
 
@@ -398,6 +400,14 @@ export function mergeVenueNightSnapshots(
     venues: groupGamesByVenue(gamesFromToday(games, todayISO)),
     heldBack,
     warnings: [...warnings, ...errors].filter(Boolean),
+    ...(errors.length
+      ? {
+          notice: `${parts
+            .filter((p) => errors.some((e) => e.startsWith(`${p.source}: `)))
+            .map((p) => p.source)
+            .join(' and ')} games could not be loaded right now, so they are not in this list. Tap Refresh fixtures to try again.`,
+        }
+      : {}),
   }
 }
 
@@ -451,6 +461,8 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
   const patched = { ...base, ...importMetaPatch(base, result), white, blue, sourceUrl: game.detailsUrl }
   // Prefer full venue from match-info over card short name.
   if (result.venue) patched.venue = result.venue
+  // Keep the AJWP label on the scorer and TV meta line (importMetaPatch uses the RevSport competition name).
+  if (game.source === 'AJWP') patched.eventName = base.eventName
 
   return { match: patched, warnings }
 }

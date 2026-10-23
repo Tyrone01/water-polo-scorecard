@@ -109,6 +109,7 @@ describe('AJWP Friday games at Alstonville', () => {
     expect(snap.games.length).toBeGreaterThan(0)
     expect(snap.games.every((g) => g.source === 'FNC')).toBe(true)
     expect(snap.warnings.join(' ')).toMatch(/^AJWP: |AJWP: /)
+    expect(snap.notice).toBe('AJWP games could not be loaded right now, so they are not in this list. Tap Refresh fixtures to try again.')
   })
 })
 
