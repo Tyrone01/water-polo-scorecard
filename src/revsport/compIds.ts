@@ -24,8 +24,20 @@ export const COMP_RULES: Partial<Record<RevSportClubId, CompRule>> = {
 
 export type CompDecision = 'load' | 'excluded' | 'not-listed'
 
-export function compDecision(club: RevSportClubId | '', competitionId: string | undefined): CompDecision {
-  const rule = club ? COMP_RULES[club] : undefined
+/**
+ * AJWP competitions shown on the pool game lists and TV boards (venue night), by id only.
+ * 28040 "A grade" and 28041 "B/C Grade": Friday nights at Alstonville Pool, 2026/27 season.
+ * A new AJWP competition is held back here until its id is added. Manual AJWP imports in
+ * Setup are not affected (COMP_RULES has no AJWP entry).
+ */
+export const AJWP_VENUE_NIGHT_RULE: CompRule = { allow: ['28040', '28041'] }
+
+export function compDecision(
+  club: RevSportClubId | '',
+  competitionId: string | undefined,
+  ruleOverride?: CompRule,
+): CompDecision {
+  const rule = ruleOverride ?? (club ? COMP_RULES[club] : undefined)
   if (!rule) return 'load'
   const id = (competitionId || '').trim()
   if (id && rule.exclude?.includes(id)) return 'excluded'
