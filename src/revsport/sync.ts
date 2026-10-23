@@ -15,7 +15,7 @@ import {
 } from '../importApply'
 import { expandPendingRounds, fetchRevSport, rosterMissingNote, type Result } from './client'
 import type { RevSportClubId } from './clubs'
-import { AJWP_FRIDAY_RULE, compDecision, compDecisionNote, type CompRule } from './compIds'
+import { AJWP_FRIDAY_RULE, AJWP_VENUE_NIGHT_RULE, compDecision, compDecisionNote, type CompRule } from './compIds'
 import { fridayOnOrAfter, sydneyTodayISO } from './dates'
 import { competitionIdFromUrl, gameIdFromUrl, teamIdFromUrl } from './ids'
 import type { ImportedGame, ImportedGrade } from './parser'
@@ -57,8 +57,13 @@ export interface LiveGame {
   competitionId?: string
   homeTeamId?: string
   awayTeamId?: string
-  /** Which association this fixture was loaded for. Absent on the FNC pool list. */
+  /** Which association this fixture was loaded for. */
   source?: LiveSource
+  /**
+   * Friday button games keep the "AJWP Friday night" title.
+   * Pool-list AJWP games use "AJWP" on the scorecard and TV.
+   */
+  listedOn?: 'friday' | 'venue-night'
 }
 
 export interface HeldBackCompetition {
@@ -150,6 +155,11 @@ function toLiveGame(g: ImportedGame, meta: { competition?: string; grade?: strin
   }
 }
 
+/**
+ * Group fixture cards by their own venue name.
+ * A name that could be two pools stays in its own group. It is not filed under
+ * whichever pool name appears first.
+ */
 export function groupGamesByVenue(games: LiveGame[]): LiveVenue[] {
   const map = new Map<string, LiveVenue>()
   for (const g of games) {
@@ -339,7 +349,8 @@ export async function syncFncLive(
 export async function syncAjwpFridayNight(todayISO = sydneyTodayISO()): Promise<SyncSnapshot> {
   const snap = await syncFncLive(AJWP_GAMES_HUB, 'AJWP', AJWP_FRIDAY_RULE)
   const titled = 'AJWP Friday night comp'
-  const tag = (games: LiveGame[]) => games.map((g) => ({ ...g, source: 'AJWP' as const }))
+  const tag = (games: LiveGame[]) =>
+    games.map((g) => ({ ...g, source: 'AJWP' as const, listedOn: 'friday' as const }))
   if (snap.error && !snap.games.length) {
     return {
       ...snap,
@@ -372,6 +383,108 @@ export async function syncAjwpFridayNight(todayISO = sydneyTodayISO()): Promise<
     ...(notice ? { notice } : {}),
     error: night.length ? undefined : 'No Friday games found from today onward.',
   }
+}
+
+/**
+ * Pool game lists: FNC (27800, 27655) and AJWP Friday nights (28040, 28041),
+ * loaded together and merged. Competitions are picked by id only. Games are
+ * de-duplicated by game id. If AJWP cannot be reached, the FNC list still shows.
+ */
+export async function syncVenueNightLive(todayISO = sydneyTodayISO()): Promise<SyncSnapshot> {
+  const [fnc, ajwp] = await Promise.all([
+    syncFncLive(FNC_GAMES_HUB, 'FNC'),
+    syncFncLive(AJWP_GAMES_HUB, 'AJWP', AJWP_VENUE_NIGHT_RULE),
+  ])
+  return mergeVenueNightSnapshots(
+    [
+      { source: 'FNC', snap: fnc },
+      { source: 'AJWP', snap: ajwp },
+    ],
+    todayISO,
+  )
+}
+
+export function mergeVenueNightSnapshots(
+  parts: { source: LiveSource; snap: SyncSnapshot }[],
+  todayISO = sydneyTodayISO(),
+): SyncSnapshot {
+  const games: LiveGame[] = []
+  const seen = new Set<string>()
+  const competitions: LiveCompetition[] = []
+  const heldBack: HeldBackCompetition[] = []
+  const warnings: string[] = []
+  const errors: string[] = []
+  const loaded: LiveSource[] = []
+  for (const { source, snap } of parts) {
+    if (snap.error && !snap.games.length) {
+      errors.push(`${source}: ${snap.error}`)
+      continue
+    }
+    if (snap.games.length) loaded.push(source)
+    competitions.push(...snap.competitions)
+    heldBack.push(...snap.heldBack)
+    warnings.push(...snap.warnings.map((w) => (source === 'FNC' ? w : `${source}: ${w}`)))
+    for (const g of snap.games) {
+      if (seen.has(g.id)) continue
+      seen.add(g.id)
+      games.push({
+        ...g,
+        source,
+        ...(source === 'AJWP' ? { listedOn: 'venue-night' as const } : {}),
+      })
+    }
+  }
+  const first = parts[0]?.snap
+  const failed = parts
+    .filter((p) => errors.some((e) => e.startsWith(`${p.source}: `)))
+    .map((p) => p.source)
+  const notice = failed.length
+    ? `${failed.join(' and ')} games could not be loaded right now, so they are not in this list. Tap Refresh fixtures to try again.`
+    : undefined
+  if (!games.length) {
+    return {
+      hubUrl: first?.hubUrl || FNC_GAMES_HUB,
+      fetchedAt: first?.fetchedAt || new Date().toISOString(),
+      eventName: first?.eventName || 'Far North Coast Water Polo',
+      competitions,
+      games: [],
+      venues: [],
+      heldBack,
+      warnings: [...warnings, ...errors].filter(Boolean),
+      ...(notice ? { notice } : {}),
+      error: errors.join(' ') || first?.error || 'No fixtures found',
+    }
+  }
+  const fncName = parts.find((p) => p.source === 'FNC')?.snap.eventName
+  const eventName = loaded.includes('FNC')
+    ? loaded.length > 1
+      ? `${fncName || 'Far North Coast Water Polo'} + ${loaded.filter((s) => s !== 'FNC').join(' + ')}`
+      : fncName || 'Far North Coast Water Polo'
+    : loaded.join(' + ')
+  return {
+    hubUrl: first?.hubUrl || FNC_GAMES_HUB,
+    fetchedAt: first?.fetchedAt || new Date().toISOString(),
+    eventName,
+    competitions,
+    games,
+    venues: groupGamesByVenue(gamesFromToday(games, todayISO)),
+    heldBack,
+    warnings: [...warnings, ...errors].filter(Boolean),
+    ...(notice ? { notice } : {}),
+  }
+}
+
+/** Title on the scorecard and the TV. Pool-list AJWP games say "AJWP", not the Friday-button title. */
+export function liveEventTitle(
+  game: Pick<LiveGame, 'source' | 'listedOn' | 'grade' | 'competition'>,
+  pageCompetition?: string,
+): string {
+  const grade = game.grade || ''
+  if (game.source === 'AJWP') {
+    const prefix = game.listedOn === 'venue-night' ? 'AJWP' : 'AJWP Friday night'
+    return [prefix, grade].filter(Boolean).join(' · ')
+  }
+  return [pageCompetition || game.competition, grade].filter(Boolean).join(' · ') || 'FNC Water Polo'
 }
 
 /** Load one game's match info + rosters from RevSport and build a Match. */
@@ -407,10 +520,7 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
   }
 
   const base = newMatch({
-    eventName:
-      game.source === 'AJWP'
-        ? ['AJWP Friday night', grade].filter(Boolean).join(' · ')
-        : [result.competition || game.competition, grade].filter(Boolean).join(' · ') || 'FNC Water Polo',
+    eventName: liveEventTitle({ ...game, grade }, result.competition || game.competition),
     stage: stage || 'Round',
     venue: result.venue || game.venueName,
     grade: grade || 'Open',
