@@ -21,7 +21,7 @@ import {
 } from '../engine'
 import { boardIdForMatch, publicBoardUrl } from '../boardPublish'
 import { describeEntry, removalConfirmCopy } from '../entryCopy'
-import { LEGEND, TEST_NUKE_GAME, type EventCode, type LogEvent, type Match, type PeriodId, type Player, type Side } from '../types'
+import { CODE_BUTTON_LABEL, LEGEND, TEST_NUKE_GAME, type EventCode, type LogEvent, type Match, type PeriodId, type Player, type Side } from '../types'
 import { Tip } from './Tip'
 import { TeamPanel } from './TeamPanel'
 
@@ -272,46 +272,62 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
               <div className="codes" style={{ marginTop: 6 }}>
                 {(['G', 'EG', 'PG', 'E', 'P', 'S', 'TO', 'SU'] as EventCode[]).map((c) => {
                   const meta = LEGEND.find((l) => l.code === c)
+                  const label = CODE_BUTTON_LABEL[c]
                   return (
                     <button
                       key={c}
                       type="button"
                       className={`code-btn ${c}`}
-                      title={meta?.tip || c}
+                      title={meta?.tip || label}
                       onClick={() => record(c)}
                     >
-                      {c}
+                      {label}
                     </button>
                   )
                 })}
               </div>
             </div>
-            <div className="tools">
+            <div className="fix-bar">
               <button
-                className="btn"
+                className="btn fix-btn"
                 type="button"
                 disabled={!match.events.length}
+                aria-describedby={match.events.length ? undefined : 'fix-hint'}
                 onClick={() => {
                   const last = match.events[match.events.length - 1]
                   if (last) askRemove(last)
                 }}
               >
-                Undo last entry
+                Undo last
               </button>
-              <button className="btn" type="button" disabled={!match.events.length} onClick={() => setRemoveOpen(true)}>
-                Remove an entry
+              <button
+                className="btn fix-btn"
+                type="button"
+                disabled={!match.events.length}
+                aria-describedby={match.events.length ? undefined : 'fix-hint'}
+                onClick={() => setRemoveOpen(true)}
+              >
+                Remove entry
               </button>
-              <button className="btn" onClick={onSetup}>Setup</button>
+              <button className="btn setup-side" type="button" onClick={onSetup}>
+                Setup
+              </button>
               {TEST_NUKE_GAME ? (
                 <button
-                  className="btn danger"
+                  className="btn nuke-quiet"
                   type="button"
+                  title="Test only. Wipes this game and goes back to the venue list."
                   onClick={() => {
                     if (window.confirm('TEST nuke: wipe this game and go back to venues?')) onClearNext()
                   }}
                 >
                   Nuke
                 </button>
+              ) : null}
+              {!match.events.length ? (
+                <p className="fix-hint" id="fix-hint">
+                  After you score, use these to fix a mistake
+                </p>
               ) : null}
             </div>
           </div>

@@ -174,6 +174,18 @@ export const LEGEND: { code: EventCode; label: string; tip: string }[] = [
   { code: 'SU', label: 'Swim Up', tip: 'Swim-up. Tap the player who won the ball at the start of the quarter. Sets possession to that team and resets the shot clock.' },
 ]
 
+/** Words on the live scoring buttons. Locked with Tyrone — not the longer LEGEND labels. */
+export const CODE_BUTTON_LABEL: Record<EventCode, string> = {
+  G: 'Goal',
+  EG: 'Exclusion Goal',
+  PG: 'Penalty Goal',
+  E: 'Exclusion',
+  P: 'Penalty',
+  S: 'Suspension',
+  TO: 'Time out',
+  SU: 'Swim Up',
+}
+
 export const AGE_PERIOD_MINUTES: Record<AgeGroup, number> = {
   U12: 6,
   U13: 7,

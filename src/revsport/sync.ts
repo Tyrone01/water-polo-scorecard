@@ -11,6 +11,7 @@ import {
   importedTeamToTeam,
   placeholderTeam,
   revsportRefFrom,
+  withPlaceholderRoster,
 } from '../importApply'
 import { expandPendingRounds, fetchRevSport, rosterMissingNote, type Result } from './client'
 import type { RevSportClubId } from './clubs'
@@ -390,8 +391,14 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
   if (!game.homeTeamId && !game.awayTeamId) {
     warnings.push('This fixture has no RevSport team ids, so White and Blue were left empty. Add the teams in Setup.')
   }
-  const white = sides.white ? importedTeamToTeam(sides.white) : placeholderTeam(game.home, game.homeTeamId)
-  const blue = sides.blue ? importedTeamToTeam(sides.blue) : placeholderTeam(game.away, game.awayTeamId)
+  // FNC pool nights and AJWP Friday both start here. An empty public list
+  // (the yellow notice) gets Placeholder 1–11. A real roster is not touched.
+  const white = withPlaceholderRoster(
+    sides.white ? importedTeamToTeam(sides.white) : placeholderTeam(game.home, game.homeTeamId),
+  )
+  const blue = withPlaceholderRoster(
+    sides.blue ? importedTeamToTeam(sides.blue) : placeholderTeam(game.away, game.awayTeamId),
+  )
   if (!white.name) white.name = game.home || 'White'
   if (!blue.name) blue.name = game.away || 'Blue'
   for (const t of [white, blue]) {

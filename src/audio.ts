@@ -66,14 +66,25 @@ export function unlockAudio(): void {
 
 
 /**
- * Poolside electronic horn: three sharp dual-tone bursts
- * (Siren, shot-clock zero, and quarter end).
+ * Poolside electronic horn: three dual-tone bursts
+ * (Siren, shot-clock zero, and quarter end share this one sound).
+ * Bursts were 0.28s (whole horn ~1.1s). Each burst is 0.62s so the horn
+ * lasts about a second longer (~2.1s) — still a short pool blast.
  */
+const HORN_BURST_SEC = 0.62
+const HORN_GAP_SEC = 0.11
+const HORN_TAIL_SEC = 0.04
+const HORN_BURST_COUNT = 3
+
+/** Audible length of the shared pool horn, in seconds. */
+export const POOL_HORN_DURATION_SEC =
+  HORN_BURST_SEC * HORN_BURST_COUNT + HORN_GAP_SEC * (HORN_BURST_COUNT - 1) + HORN_TAIL_SEC
+
 function playPoolHorn(ctx: AudioContext): void {
   const now = ctx.currentTime
-  const burst = 0.28
-  const gap = 0.11
-  const total = burst * 3 + gap * 2 + 0.04
+  const burst = HORN_BURST_SEC
+  const gap = HORN_GAP_SEC
+  const total = POOL_HORN_DURATION_SEC
 
   const master = ctx.createGain()
   master.connect(ctx.destination)
