@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { playClockSignal, unlockAudio } from '../audio'
-import { autoSaveMatchToDrive, retrySaveMatchToDrive } from '../driveClient'
-import { exportResults } from '../csv'
+import { DriveSavePanel } from './DriveSavePanel'
+import { retrySaveMatchToDrive } from '../driveClient'
+import { loadGsiClient } from '../googleAuth'
 import {
   applyEvent,
   deleteEvent,
@@ -41,6 +42,10 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
   const [removeOpen, setRemoveOpen] = useState(false)
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
   const lastPlayedSignal = useRef(match.clockSignal?.id ?? null)
+  const driveBootId = useRef<string | null>(null)
+  const driveSaving = useRef(false)
+  const matchRef = useRef(match)
+  matchRef.current = match
 
   useEffect(() => {
     const signal = match.clockSignal
@@ -63,16 +68,28 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
 
   useEffect(() => {
     if (!match.ended) return
-    if (match.driveSave?.status === 'verified') return
+    void loadGsiClient().catch(() => {})
+    if (driveBootId.current === match.id) return
+    driveBootId.current = match.id
+    if (match.driveSave?.status !== 'saving') return
     setMatch((prev) =>
-      prev.driveSave?.status === 'verified' || prev.driveSave?.status === 'saving'
-        ? prev
-        : { ...prev, driveSave: { status: 'saving' } },
+      prev.id === match.id && prev.driveSave?.status === 'saving'
+        ? { ...prev, driveSave: { status: 'idle' } }
+        : prev,
     )
-    void autoSaveMatchToDrive(match).then((driveSave) => {
-      setMatch((prev) => ({ ...prev, driveSave }))
-    })
   }, [match.ended, match.id, setMatch])
+
+  function onDriveSave() {
+    if (driveSaving.current) return
+    const current = matchRef.current
+    driveSaving.current = true
+    setMatch((prev) => ({ ...prev, driveSave: { status: 'saving' } }))
+    void retrySaveMatchToDrive(current).then((driveSave) => {
+      setMatch((prev) => (prev.id === current.id ? { ...prev, driveSave } : prev))
+    }).finally(() => {
+      driveSaving.current = false
+    })
+  }
 
   const score = runningScoreFromEvents(match.events)
   const liveE = deriveLiveExclusions(match)
@@ -155,69 +172,7 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
         </div>
       ) : null}
       {match.ended ? (
-        <div
-          className={`banner ${
-            match.driveSave?.status === 'verified' ? 'ok' : match.driveSave?.status === 'error' ? '' : 'warn'
-          }`}
-        >
-          <span>
-            {match.driveSave?.status === 'verified' ? (
-              <>
-                Game over — saved &amp; verified on Club Drive
-                {match.driveSave.logUrl ? (
-                  <>
-                    {' '}
-                    <a href={match.driveSave.logUrl} target="_blank" rel="noreferrer">
-                      event log
-                    </a>
-                  </>
-                ) : null}
-                {match.driveSave.summaryUrl ? (
-                  <>
-                    {' · '}
-                    <a href={match.driveSave.summaryUrl} target="_blank" rel="noreferrer">
-                      player summary
-                    </a>
-                  </>
-                ) : null}
-              </>
-            ) : match.driveSave?.status === 'error' ? (
-              <>Game over — Drive save failed{match.driveSave.error ? `: ${match.driveSave.error}` : ''}</>
-            ) : (
-              'Game over — auto-saving scorecard to Club Drive…'
-            )}
-          </span>
-          {match.driveSave?.status === 'error' ? (
-            <button
-              className="btn"
-              type="button"
-              onClick={() => {
-                setMatch((prev) => ({ ...prev, driveSave: { status: 'saving' } }))
-                void retrySaveMatchToDrive(match).then((driveSave) => {
-                  setMatch((prev) => ({ ...prev, driveSave }))
-                })
-              }}
-            >
-              Save to Drive
-            </button>
-          ) : null}
-          <button
-            className="btn"
-            type="button"
-            title="A file for an FNC admin to type the result into RevSport. Nothing is sent to RevSport."
-            onClick={() => exportResults(match)}
-          >
-            Results for RevSport (CSV)
-          </button>
-          <button
-            className="btn primary"
-            type="button"
-            disabled={match.driveSave?.status !== 'verified'}
-            onClick={onClearNext}
-          >
-            Clear for next game
-          </button>
-        </div>
+        <DriveSavePanel match={match} onSave={onDriveSave} onClear={onClearNext} />
       ) : null}
       {liveE.length ? (
         <div className="exclusions">

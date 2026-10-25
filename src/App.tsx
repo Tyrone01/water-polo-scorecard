@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { DriveOAuthPopup } from './components/DriveOAuthPopup'
 import { SetupScreen } from './components/SetupScreen'
 import { Scorecard } from './components/Scorecard'
 import { VenueNightScreen, venueIdFromMatchVenue } from './components/VenueNightScreen'
@@ -7,6 +8,7 @@ import { emptyTeam, newMatch } from './engine'
 import { clearMatch, loadAdmin, loadMatch, saveMatch } from './storage'
 import { boardIdForMatch, clearBoard, publishBoard } from './boardPublish'
 import { mergeTeamById } from './importApply'
+import { isDriveOauthPath } from './googleOrigins'
 import { AJWP_FRIDAY_NIGHT } from './revsport/sync'
 import type { Match } from './types'
 
@@ -36,6 +38,11 @@ function initialScreen(): Screen {
 }
 
 export function App() {
+  if (isDriveOauthPath(window.location.pathname)) return <DriveOAuthPopup />
+  return <ScoreApp />
+}
+
+function ScoreApp() {
   const [match, setMatchState] = useState<Match | null>(() => loadMatch())
   const [screen, setScreen] = useState<Screen>(() => initialScreen())
   // Landing page (board.fncwp.com) sends scorers here as /score?venue=alstonville.

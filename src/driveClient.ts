@@ -1,5 +1,6 @@
 import { eventLogCsv, eventLogFilename, playerSummaryCsv, playerSummaryFilename } from './csv'
-import { parseDriveFolderId } from './driveFolder'
+import { plainDriveError } from './driveErrors'
+import { resolveDriveTarget } from './driveTarget'
 import { getValidAccessToken, googleSessionEmail } from './googleAuth'
 import { loadAdmin, saveAdmin } from './storage'
 import type { DriveSave, Match } from './types'
@@ -34,22 +35,16 @@ async function postUpload(body: {
 
 export async function saveMatchToDrive(match: Match): Promise<DriveSave> {
   const admin = loadAdmin()
-  const folderId = parseDriveFolderId(admin.driveFolderUrl) || admin.driveFolderId
-  if (!folderId) {
-    return { status: 'error', error: 'Set a Drive folder URL in Setup → Club Drive (admin).' }
-  }
-  if (!admin.googleClientId.trim()) {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'this preview origin'
-    return {
-      status: 'error',
-      error: `Connect Google needs a Google Cloud OAuth Web client ID with JS origins for http://localhost:5173 and ${origin}. Paste it in Setup → Club Drive (admin).`,
-    }
+  const target = resolveDriveTarget(admin)
+  const base = { folderLabel: target.label, folderUrl: target.folderUrl }
+  if (!target.folderId) {
+    return { status: 'error', ...base, error: `No Drive folder on this tablet. Ask Tyrone to confirm ${target.label}.` }
   }
   try {
     const accessToken = await getValidAccessToken(admin.googleClientId)
     const result = await postUpload({
       accessToken,
-      folderId,
+      folderId: target.folderId,
       files: [
         { name: eventLogFilename(match), content: eventLogCsv(match), mimeType: 'text/csv' },
         { name: playerSummaryFilename(match), content: playerSummaryCsv(match), mimeType: 'text/csv' },
@@ -58,29 +53,35 @@ export async function saveMatchToDrive(match: Match): Promise<DriveSave> {
     const log = result.files[0]
     const summary = result.files[1]
     if (!log?.id || !summary?.id) {
-      return { status: 'error', error: 'Drive did not verify both CSV files.' }
+      return { status: 'error', ...base, error: 'Drive did not confirm both CSV files. Tap Retry.' }
     }
     const savedAt = new Date().toISOString()
     const email = googleSessionEmail()
+    const accountEmail = email || admin.lastEmail
     saveAdmin({
       ...loadAdmin(),
-      lastEmail: email || loadAdmin().lastEmail,
+      lastEmail: accountEmail || loadAdmin().lastEmail,
       lastSaveAt: savedAt,
       lastSaveLogUrl: log.webViewLink,
       lastSaveSummaryUrl: summary.webViewLink,
     })
     return {
       status: 'verified',
+      ...base,
       logFileId: log.id,
       summaryFileId: summary.id,
       logUrl: log.webViewLink,
       summaryUrl: summary.webViewLink,
       savedAt,
+      accountEmail,
     }
   } catch (err) {
+    const raw = err instanceof Error ? err.message : 'Drive save failed'
     return {
       status: 'error',
-      error: err instanceof Error ? err.message : 'Drive save failed',
+      ...base,
+      error: plainDriveError(raw, target.label),
+      accountEmail: googleSessionEmail() || admin.lastEmail,
     }
   }
 }
