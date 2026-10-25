@@ -153,6 +153,7 @@ function durableMatchKey(match: Match): string {
     match.id,
     match.events.map((e) => `${e.id}:${e.code}:${e.cap}:${e.side}:${e.time}:${e.period}`).join(','),
     match.clockRunning ? 1 : 0,
+    match.clockStarted ? 1 : 0,
     match.shotClockRunning ? 1 : 0,
     match.breakRunning ? 1 : 0,
     match.breakKind ?? '',

@@ -1297,6 +1297,46 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 .teams-duo .team-panel {
   overflow: hidden; /* no scroll — all caps on screen */
 }
+.teams-duo .team-panel.prestart {
+  overflow: auto;
+}
+.team-panel.prestart .team-head { padding: 3px 6px; font-size: 12px; }
+.prestart-caps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 4px;
+  padding: 2px 4px 6px;
+  align-content: start;
+}
+.prestart-cap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 24px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.prestart-cap.selected { outline: 2px solid var(--gold); border-radius: 6px; }
+.prestart-cap .cap {
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.prestart-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
 .team-panel.compact .team-table {
   font-size: clamp(11px, 1.1vw, 14px);
 }
@@ -1474,10 +1514,45 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 @media (max-width: 900px) {
   .scoring-main {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) minmax(128px, 22vh);
   }
   .scoring-left { min-height: 0; overflow: hidden; }
-  .scoring-rail { max-height: 38vh; overflow: auto; }
+  /* Clock rail stays usable, but the roster keeps a band so every cap fits before the whistle. */
+  .scoring-rail { max-height: 22vh; overflow: auto; }
+  .teams-duo { flex: 1 1 auto; min-height: 156px; }
+  .live .scoring-actionbar .tools {
+    flex-wrap: nowrap;
+    align-items: center;
+    margin-top: 2px;
+  }
+  .live .scoring-actionbar .tools .field {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .live .scoring-actionbar .tools .field input {
+    min-height: 32px;
+    width: 72px;
+    padding: 2px 6px;
+  }
+  .live .scoring-actionbar .timeouts {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nuke-zone {
+    margin-top: 10px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .nuke-note { font-size: 12px; }
+  .btn.nuke-danger { min-height: 44px; min-width: 96px; font-size: 18px; padding: 0 14px; }
+  .team-panel.prestart .team-head { padding: 2px 4px; font-size: 11px; }
+  .prestart-caps { gap: 1px 3px; padding: 1px 2px 2px; }
+  .prestart-cap { min-height: 22px; gap: 3px; }
+  .prestart-cap .cap { width: 20px; height: 20px; font-size: 10px; }
+  .prestart-name { font-size: 11px; }
   /* One scrolling row of full names. Buttons stay 56px tall; the roster stays on screen. */
   .live .scoring-actionbar .codes {
     flex-wrap: nowrap;

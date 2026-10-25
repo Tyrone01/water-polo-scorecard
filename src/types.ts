@@ -111,6 +111,8 @@ export interface Match {
   currentPeriod: PeriodId
   clockRemainingSec: number
   clockRunning: boolean
+  /** Set when the game clock is started. Hides the pre-start cap lineup for the rest of the game. */
+  clockStarted?: boolean
   quarterBreakSec: number
   halfTimeBreakSec: number
   breakRemainingSec: number

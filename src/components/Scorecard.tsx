@@ -23,8 +23,10 @@ import {
 import { boardIdForMatch, publicBoardUrl } from '../boardPublish'
 import { describeEntry, removalConfirmCopy } from '../entryCopy'
 import { CODE_BUTTON_LABEL, LEGEND, TEST_NUKE_GAME, type EventCode, type LogEvent, type Match, type PeriodId, type Player, type Side } from '../types'
+import { showPrestartCaps } from '../prestartCaps'
 import { Tip } from './Tip'
 import { TeamPanel } from './TeamPanel'
+import { PrestartSquad } from './PrestartSquad'
 
 interface Props {
   match: Match
@@ -275,6 +277,15 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
             </div>
           </div>
           <div className="teams-duo">
+            {showPrestartCaps(match) ? (
+              <PrestartSquad
+                side="white"
+                team={match.white}
+                selectedId={side === 'white' ? player?.id : undefined}
+                onSelect={(p) => selectPlayer('white', p)}
+              />
+            ) : null}
+            {!showPrestartCaps(match) ? (
             <TeamPanel
               side="white"
               team={match.white}
@@ -295,6 +306,15 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
                 else setMatch(r.match)
               }}
             />
+            ) : null}
+            {showPrestartCaps(match) ? (
+              <PrestartSquad
+                side="blue"
+                team={match.blue}
+                selectedId={side === 'blue' ? player?.id : undefined}
+                onSelect={(p) => selectPlayer('blue', p)}
+              />
+            ) : (
             <TeamPanel
               side="blue"
               team={match.blue}
@@ -315,6 +335,7 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
                 else setMatch(r.match)
               }}
             />
+            )}
           </div>
 
         </div>
@@ -351,7 +372,11 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
                   unlockAudio()
                   match.breakKind
                     ? setMatch({ ...match, breakRunning: !match.breakRunning })
-                    : setMatch({ ...match, clockRunning: !match.clockRunning })
+                    : setMatch({
+                        ...match,
+                        clockRunning: !match.clockRunning,
+                        ...(!match.clockRunning ? { clockStarted: true } : {}),
+                      })
                 }}
               >
                 {match.breakKind ? (match.breakRunning ? 'Pause' : 'Start') : match.clockRunning ? 'Pause' : 'Start'}
