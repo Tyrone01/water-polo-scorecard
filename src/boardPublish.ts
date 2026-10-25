@@ -350,8 +350,32 @@ function boardFingerprint(match: Match): string {
   ].join('|')
 }
 
+/**
+ * Baked in at build time from `VITE_BOARD_WRITE_TOKEN`. Empty in local builds
+ * unless that variable is set. The Worker secret is the real check; this copy
+ * lets a tablet on workers.dev publish to board.fncwp.com. Access cookies are
+ * not sent on that cross-origin call.
+ *
+ * Vite inlines `import.meta.env.VITE_*` in the browser bundle. Vitest keeps a
+ * snapshot of that object, so a test token set with `vi.stubEnv` is read from
+ * `process.env` when the inlined value is empty. The browser has no `process`.
+ */
+function boardWriteToken(): string {
+  const raw = import.meta.env.VITE_BOARD_WRITE_TOKEN
+  if (typeof raw === 'string' && raw.trim()) return raw.trim()
+  const fromProcess = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    ?.VITE_BOARD_WRITE_TOKEN
+  return typeof fromProcess === 'string' ? fromProcess.trim() : ''
+}
+
+function withWriteAuth(headers: Record<string, string>): Record<string, string> {
+  const token = boardWriteToken()
+  if (!token) return headers
+  return { ...headers, Authorization: `Bearer ${token}` }
+}
+
 function postBoardSnapshot(id: string, body: string, signal?: AbortSignal): Promise<Response> {
-  const headers = { 'Content-Type': 'application/json' }
+  const headers = withWriteAuth({ 'Content-Type': 'application/json' })
   const init: RequestInit = { method: 'POST', headers, body, signal }
   if (!PUBLIC_BOARD_ORIGIN) return fetch(`/api/board/${encodeURIComponent(id)}`, init)
   const publicUrl = `${PUBLIC_BOARD_ORIGIN}/api/board/${encodeURIComponent(id)}`
@@ -427,11 +451,10 @@ export function resetBoardPublishState(): void {
 }
 
 function deleteBoardSnapshot(id: string): Promise<Response> {
-  if (!PUBLIC_BOARD_ORIGIN) return fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  const init: RequestInit = { method: 'DELETE', headers: withWriteAuth({}) }
+  if (!PUBLIC_BOARD_ORIGIN) return fetch(`/api/board/${encodeURIComponent(id)}`, init)
   const publicUrl = `${PUBLIC_BOARD_ORIGIN}/api/board/${encodeURIComponent(id)}`
-  return fetch(publicUrl, { method: 'DELETE' }).catch(() =>
-    fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  )
+  return fetch(publicUrl, init).catch(() => fetch(`/api/board/${encodeURIComponent(id)}`, init))
 }
 
 /**

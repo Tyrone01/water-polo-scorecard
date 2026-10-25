@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin, type ViteDevServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { handleBoardRequest } from './server/boardApi'
+import { handleBoardRequest, type BoardEnv } from './server/boardApi'
 import { handleDriveUploadRequest } from './server/driveUpload'
 import { handleRevSportRequest } from './server/revsportProxy'
 
@@ -56,7 +56,15 @@ function apiProxy(): Plugin {
     if (pathOnly.startsWith('/api/board/')) {
       const body = await readBody(req)
       const request = nodeToRequest(req, 'http://vite.local' + rawUrl, body)
-      const response = await handleBoardRequest(request)
+      // vite.local is the local-dev host. Writes stay locked unless
+      // BOARD_WRITE_OPEN=1 (or BOARD_WRITE_TOKEN) is set in the environment.
+      const boardEnv: BoardEnv = {
+        BOARD_WRITE_TOKEN: process.env.BOARD_WRITE_TOKEN,
+        ACCESS_AUD: process.env.ACCESS_AUD,
+        ACCESS_TEAM_DOMAIN: process.env.ACCESS_TEAM_DOMAIN,
+        BOARD_WRITE_OPEN: process.env.BOARD_WRITE_OPEN,
+      }
+      const response = await handleBoardRequest(request, boardEnv)
       if (!response) {
         next()
         return

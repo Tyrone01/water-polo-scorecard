@@ -5,6 +5,7 @@ import {
   boardIdForMatch,
   boardUrl,
   buildBoardSnapshot,
+  clearBoard,
   coerceBoardSnapshot,
   publishBoard,
   publicBoardUrl,
@@ -212,6 +213,7 @@ describe('live board write rate', () => {
   afterEach(() => {
     resetBoardPublishState()
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
     vi.useRealTimers()
   })
 
@@ -268,5 +270,38 @@ describe('live board write rate', () => {
     expect(sent.white).toBe(1)
     expect(sent.last.some((e) => e.code === 'G')).toBe(true)
     expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(3)
+  })
+
+  it('sends the board write token on publish and clear when the build has one', async () => {
+    vi.stubEnv('VITE_BOARD_WRITE_TOKEN', 'preview-token')
+    vi.useFakeTimers()
+    resetBoardPublishState()
+    const fetchMock = vi.fn(async () => new Response('{"ok":true}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const m = { ...demoMatch(), started: true }
+    publishBoard(m)
+    await vi.advanceTimersByTimeAsync(0)
+    const post = fetchMock.mock.calls[0]
+    expect(String(post?.[0])).toBe('https://board.fncwp.com/api/board/alstonville')
+    const postHeaders = new Headers((post?.[1] as RequestInit).headers)
+    expect(postHeaders.get('Authorization')).toBe('Bearer preview-token')
+    expect(postHeaders.get('Content-Type')).toBe('application/json')
+
+    clearBoard('alstonville')
+    const del = fetchMock.mock.calls.at(-1)
+    expect(del?.[1]).toMatchObject({ method: 'DELETE' })
+    const delHeaders = new Headers((del?.[1] as RequestInit).headers)
+    expect(delHeaders.get('Authorization')).toBe('Bearer preview-token')
+  })
+
+  it('leaves the write header off when the build has no token', async () => {
+    vi.useFakeTimers()
+    resetBoardPublishState()
+    const fetchMock = vi.fn(async () => new Response('{"ok":true}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    publishBoard({ ...demoMatch(), started: true })
+    await vi.advanceTimersByTimeAsync(0)
+    const headers = new Headers((fetchMock.mock.calls[0]?.[1] as RequestInit).headers)
+    expect(headers.get('Authorization')).toBeNull()
   })
 })

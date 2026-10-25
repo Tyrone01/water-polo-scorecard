@@ -32,6 +32,10 @@ No venue match uses Alstonville. Files do not go in the parent Scorecards folder
 - [ ] Confirm that account is an Editor on the four pool folders above. Scope stays `drive.file`. If Drive says the folder is missing, the app cannot see a folder it did not create — paste another folder URL in Setup → Drive folder (admin). Do not invent a folder id in code.
 - [ ] Sign in once on `https://board.fncwp.com`, end a dummy game at Alstonville, tap Save to Drive, confirm both CSVs land in the Alstonville pool folder (not the parent Scorecards folder).
 
+## Board writes and Access
+
+The Worker lock and the Access plan are in [docs/ACCESS-AND-WRITE-LOCK.md](docs/ACCESS-AND-WRITE-LOCK.md). Do not turn Access on for `board.fncwp.com` until Monday approval. Preview uses its own `BOARD_WRITE_TOKEN`. Production stays on the current deploy until that lock is deliberately shipped. Pool TV `GET` stays public. `PUT`, `POST`, and `DELETE` need the write token or Tyrone's Access sign-in.
+
 ## Host
 
 - [ ] Stop relying on temporary `*.workers.dev` previews (hostname changes; OAuth origins lag).

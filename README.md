@@ -61,5 +61,9 @@ End of game → **Save to Drive**. Officials do not open Setup for a normal save
 Default save for the Mon field test is the pool folder under [2026-10-26 Mon night](https://drive.google.com/drive/folders/1ApnMIwIgNVTo_vHmmKm4FmQCzzEAImpF) on Tyrone's personal Drive, inside [FNC Water Polo Scorecards](https://drive.google.com/drive/folders/1PzhpHO6y89W3TdenqrEnL4Wz6mQ9Knok). Alstonville, Ballina, Lismore, and Mullumbimby each have their own folder. A game with no matching venue uses [Alstonville](https://drive.google.com/drive/folders/1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk). A custom folder URL in Setup → Drive folder (admin) still overrides that. The checklist Google account is `tyrone.mcgillick@gmail.com`.
 Sign-in uses the built-in OAuth **Web** client. JavaScript origins that must be on that client: `http://localhost:5173`, `https://board.fncwp.com`, and `https://water-polo-scorecard.tyrone-mcgillick.workers.dev`. Preview hostnames sign in through `https://board.fncwp.com`. Scope: `drive.file`. The page POSTs CSVs through `/api/drive/upload`; files stay `text/csv`.
 
+## Board writes
+
+Pool TVs read `/api/board/:id` with no login. Publishing or clearing a board needs `BOARD_WRITE_TOKEN` (sent by the scorer when `VITE_BOARD_WRITE_TOKEN` is set) or Tyrone's Cloudflare Access sign-in. Local Vite refuses writes unless you run `BOARD_WRITE_OPEN=1 npm run dev` or set the token. Details, the Access plan, and the preview handover are in [docs/ACCESS-AND-WRITE-LOCK.md](docs/ACCESS-AND-WRITE-LOCK.md).
+
 ## Tests
 The test script covers engine rules and the parser against real WPTAS/WPACT HTML fixtures.
