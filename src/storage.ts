@@ -3,6 +3,7 @@ import {
   AGE_PERIOD_MINUTES,
   DEFAULT_DRIVE_FOLDER_ID,
   DEFAULT_DRIVE_FOLDER_URL,
+  RETIRED_AJWP_POC_FOLDER_ID,
   DEFAULT_GOOGLE_CLIENT_ID,
   DEFAULT_HALF_TIME_BREAK_SEC,
   DEFAULT_QUARTER_BREAK_SEC,
@@ -40,11 +41,12 @@ export function loadAdmin(): AdminSettings {
     const parsed = JSON.parse(raw) as Partial<AdminSettings>
     const folderUrl = parsed.driveFolderUrl || fallback.driveFolderUrl
     const parsedId = parseDriveFolderId(folderUrl) || parsed.driveFolderId || fallback.driveFolderId
+    const retired = parsedId === RETIRED_AJWP_POC_FOLDER_ID
     return {
       ...fallback,
       ...parsed,
-      driveFolderUrl: folderUrl,
-      driveFolderId: parsedId,
+      driveFolderUrl: retired ? fallback.driveFolderUrl : folderUrl,
+      driveFolderId: retired ? fallback.driveFolderId : parsedId,
       googleClientId: parsed.googleClientId || fallback.googleClientId,
       ageGroup: parsed.ageGroup ?? fallback.ageGroup,
       periodMinutes: parsed.periodMinutes ?? fallback.periodMinutes,
@@ -151,6 +153,7 @@ function durableMatchKey(match: Match): string {
     match.id,
     match.events.map((e) => `${e.id}:${e.code}:${e.cap}:${e.side}:${e.time}:${e.period}`).join(','),
     match.clockRunning ? 1 : 0,
+    match.clockStarted ? 1 : 0,
     match.shotClockRunning ? 1 : 0,
     match.breakRunning ? 1 : 0,
     match.breakKind ?? '',

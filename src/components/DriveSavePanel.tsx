@@ -1,6 +1,6 @@
 import { exportEventLog, exportPlayerSummary, exportResults } from '../csv'
 import { driveSavePanelModel } from '../driveSavePanel'
-import { resolveDriveTarget } from '../driveTarget'
+import { resolveDriveTarget, venueHintFor } from '../driveTarget'
 import { googleSessionEmail, hasGoogleSession } from '../googleAuth'
 import { loadAdmin } from '../storage'
 import type { Match } from '../types'
@@ -17,7 +17,7 @@ export function DriveSavePanel({ match, onSave, onClear }: Props) {
     save: match.driveSave,
     email: googleSessionEmail() || match.driveSave?.accountEmail || admin.lastEmail,
     connected: hasGoogleSession(),
-    target: resolveDriveTarget(admin),
+    target: resolveDriveTarget(admin, venueHintFor(match)),
   })
 
   return (

@@ -111,6 +111,8 @@ export interface Match {
   currentPeriod: PeriodId
   clockRemainingSec: number
   clockRunning: boolean
+  /** Set when the game clock is started. Hides the pre-start cap lineup for the rest of the game. */
+  clockStarted?: boolean
   quarterBreakSec: number
   halfTimeBreakSec: number
   breakRemainingSec: number
@@ -211,11 +213,34 @@ export const MAX_PERSONAL_FOULS = 3
 export const MAX_TIMEOUTS_FINALS = 2
 export const STORAGE_KEY = 'wpq-scorecard-v1'
 export const ADMIN_STORAGE_KEY = 'ajwp-scorecard-admin-v1'
-export const DEFAULT_DRIVE_FOLDER_ID = '1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z'
-export const DEFAULT_DRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z'
-export const DEFAULT_DRIVE_FOLDER_LABEL = 'AJWP POC Scorecards'
-/** Account named on the go-live checklist. The tablet signs in as whoever taps Save. */
-export const CLUB_GOOGLE_ACCOUNT = 'admin@ajwp.com.au'
+/**
+ * Parent folder on Tyrone's personal Drive (FNC Water Polo Scorecards).
+ * One-tap Save does not upload here.
+ */
+export const DRIVE_SCORECARDS_PARENT_ID = '1PzhpHO6y89W3TdenqrEnL4Wz6mQ9Knok'
+/** 2026-10-26 Mon night folder under that parent. Saves go to a pool folder inside it. */
+export const MON_NIGHT_FOLDER_ID = '1ApnMIwIgNVTo_vHmmKm4FmQCzzEAImpF'
+/** Pool folders for the Mon field test, under MON_NIGHT_FOLDER_ID. */
+export const MON_NIGHT_POOL_FOLDER_IDS = {
+  alstonville: '1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk',
+  ballina: '1bW0_O_64h36zBaEyqkyxAtuasWf2ugqG',
+  lismore: '1Vc7PAAbOYFa51HPbWmmn5FWbNEiFzHqS',
+  mullumbimby: '1AKr2CS-t0j7fftQfu6A_4yVMGtjUbkg7',
+} as const
+/**
+ * Baked Save folder when the game has no FNC pool: Alstonville under Mon night.
+ * Not the parent Scorecards folder.
+ */
+export const DEFAULT_DRIVE_FOLDER_ID = MON_NIGHT_POOL_FOLDER_IDS.alstonville
+export const DEFAULT_DRIVE_FOLDER_URL = `https://drive.google.com/drive/folders/${DEFAULT_DRIVE_FOLDER_ID}`
+export const DEFAULT_DRIVE_FOLDER_LABEL = 'Alstonville under Mon night (FNC)'
+/**
+ * Previous baked folder. Not a save target. A tablet that still has this id
+ * stored follows the Mon night pool map instead.
+ */
+export const RETIRED_AJWP_POC_FOLDER_ID = '1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z'
+/** Checklist account until an FNC Google tenant exists. The tablet signs in as whoever taps Save. */
+export const CLUB_GOOGLE_ACCOUNT = 'tyrone.mcgillick@gmail.com'
 /**
  * drive.file only. A wider Drive scope would show Google's "unverified app" screen.
  * The signed-in account still needs Editor on the club folder. An existing folder

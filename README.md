@@ -58,7 +58,7 @@ Until then, use Paste HTML.
 
 ## Club Drive
 End of game → **Save to Drive**. Officials do not open Setup for a normal save.
-Default folder is [AJWP POC Scorecards](https://drive.google.com/drive/folders/1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z). Tyrone must confirm that folder is right for FNC nights. The checklist Google account is `admin@ajwp.com.au`.
+Default save for the Mon field test is the pool folder under [2026-10-26 Mon night](https://drive.google.com/drive/folders/1ApnMIwIgNVTo_vHmmKm4FmQCzzEAImpF) on Tyrone's personal Drive, inside [FNC Water Polo Scorecards](https://drive.google.com/drive/folders/1PzhpHO6y89W3TdenqrEnL4Wz6mQ9Knok). Alstonville, Ballina, Lismore, and Mullumbimby each have their own folder. A game with no matching venue uses [Alstonville](https://drive.google.com/drive/folders/1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk). A custom folder URL in Setup → Drive folder (admin) still overrides that. The checklist Google account is `tyrone.mcgillick@gmail.com`.
 Sign-in uses the built-in OAuth **Web** client. JavaScript origins that must be on that client: `http://localhost:5173`, `https://board.fncwp.com`, and `https://water-polo-scorecard.tyrone-mcgillick.workers.dev`. Preview hostnames sign in through `https://board.fncwp.com`. Scope: `drive.file`. The page POSTs CSVs through `/api/drive/upload`; files stay `text/csv`.
 
 ## Tests

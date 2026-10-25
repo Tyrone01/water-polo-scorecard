@@ -39,7 +39,7 @@ export function driveSavePanelModel(input: {
   else accountLine = `Google account: you'll sign in on this tap. Checklist account is ${CLUB_GOOGLE_ACCOUNT}.`
 
   const folderNote = showDefaultNote
-    ? 'Built-in default. Tyrone must confirm this folder is right for FNC nights before relying on it.'
+    ? `Mon night pool folder on ${CLUB_GOOGLE_ACCOUNT}'s Drive until an FNC Google tenant exists.`
     : status === 'verified'
       ? ''
       : 'Custom folder saved on this tablet.'

@@ -4,7 +4,7 @@ import { demoMatch } from './demo'
 import { parseDriveFolderId } from './driveFolder'
 import { emptyTeam, endQuarter, newMatch } from './engine'
 import { clearMatch, defaultAdmin, loadAdmin, loadMatch, saveAdmin, saveMatch } from './storage'
-import { ADMIN_STORAGE_KEY, DEFAULT_DRIVE_FOLDER_ID, DEFAULT_DRIVE_FOLDER_URL, STORAGE_KEY } from './types'
+import { ADMIN_STORAGE_KEY, DEFAULT_DRIVE_FOLDER_ID, DEFAULT_DRIVE_FOLDER_URL, RETIRED_AJWP_POC_FOLDER_ID, STORAGE_KEY } from './types'
 
 describe('parseDriveFolderId', () => {
   it('parses /folders/FILEID and a bare id', () => {
@@ -111,7 +111,7 @@ describe('admin storage wipe', () => {
     const admin = {
       ...defaultAdmin(),
       googleClientId: 'example.apps.googleusercontent.com',
-      lastEmail: 'admin@ajwp.com.au',
+      lastEmail: 'tyrone.mcgillick@gmail.com',
       ageGroup: 'U12' as const,
       periodMinutes: 6,
     }
@@ -124,11 +124,31 @@ describe('admin storage wipe', () => {
     expect(localStorage.getItem(ADMIN_STORAGE_KEY)).toBeTruthy()
     const kept = loadAdmin()
     expect(kept.googleClientId).toBe('example.apps.googleusercontent.com')
-    expect(kept.lastEmail).toBe('admin@ajwp.com.au')
+    expect(kept.lastEmail).toBe('tyrone.mcgillick@gmail.com')
     expect(kept.driveFolderId).toBe(DEFAULT_DRIVE_FOLDER_ID)
     expect(kept.driveFolderUrl).toBe(DEFAULT_DRIVE_FOLDER_URL)
     expect(kept.ageGroup).toBe('U12')
     expect(kept.periodMinutes).toBe(6)
     expect(kept.shotClockSec).toBe(28)
+  })
+
+  it('replaces a stored AJWP POC folder with the Alstonville default and keeps a real custom folder', () => {
+    saveAdmin({
+      ...defaultAdmin(),
+      driveFolderId: RETIRED_AJWP_POC_FOLDER_ID,
+      driveFolderUrl: `https://drive.google.com/drive/folders/${RETIRED_AJWP_POC_FOLDER_ID}`,
+    })
+    const migrated = loadAdmin()
+    expect(migrated.driveFolderId).toBe('1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk')
+    expect(migrated.driveFolderId).not.toBe(RETIRED_AJWP_POC_FOLDER_ID)
+    expect(migrated.driveFolderUrl).toBe(DEFAULT_DRIVE_FOLDER_URL)
+
+    const custom = 'abcdefghij1234567890'
+    saveAdmin({
+      ...defaultAdmin(),
+      driveFolderId: custom,
+      driveFolderUrl: `https://drive.google.com/drive/folders/${custom}`,
+    })
+    expect(loadAdmin().driveFolderId).toBe(custom)
   })
 })

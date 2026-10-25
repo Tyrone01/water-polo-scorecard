@@ -23,8 +23,10 @@ import {
 import { boardIdForMatch, publicBoardUrl } from '../boardPublish'
 import { describeEntry, removalConfirmCopy } from '../entryCopy'
 import { CODE_BUTTON_LABEL, LEGEND, TEST_NUKE_GAME, type EventCode, type LogEvent, type Match, type PeriodId, type Player, type Side } from '../types'
+import { showPrestartCaps } from '../prestartCaps'
 import { Tip } from './Tip'
 import { TeamPanel } from './TeamPanel'
+import { PrestartSquad } from './PrestartSquad'
 
 interface Props {
   match: Match
@@ -267,18 +269,6 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
               <button className="btn setup-side" type="button" onClick={onSetup}>
                 Setup
               </button>
-              {TEST_NUKE_GAME ? (
-                <button
-                  className="btn nuke-quiet"
-                  type="button"
-                  title="Test only. Wipes this game and goes back to the venue list."
-                  onClick={() => {
-                    if (window.confirm('TEST nuke: wipe this game and go back to venues?')) onClearNext()
-                  }}
-                >
-                  Nuke
-                </button>
-              ) : null}
               {!match.events.length ? (
                 <p className="fix-hint" id="fix-hint">
                   After you score, use these to fix a mistake
@@ -287,6 +277,15 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
             </div>
           </div>
           <div className="teams-duo">
+            {showPrestartCaps(match) ? (
+              <PrestartSquad
+                side="white"
+                team={match.white}
+                selectedId={side === 'white' ? player?.id : undefined}
+                onSelect={(p) => selectPlayer('white', p)}
+              />
+            ) : null}
+            {!showPrestartCaps(match) ? (
             <TeamPanel
               side="white"
               team={match.white}
@@ -307,6 +306,15 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
                 else setMatch(r.match)
               }}
             />
+            ) : null}
+            {showPrestartCaps(match) ? (
+              <PrestartSquad
+                side="blue"
+                team={match.blue}
+                selectedId={side === 'blue' ? player?.id : undefined}
+                onSelect={(p) => selectPlayer('blue', p)}
+              />
+            ) : (
             <TeamPanel
               side="blue"
               team={match.blue}
@@ -327,6 +335,7 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
                 else setMatch(r.match)
               }}
             />
+            )}
           </div>
 
         </div>
@@ -363,7 +372,11 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
                   unlockAudio()
                   match.breakKind
                     ? setMatch({ ...match, breakRunning: !match.breakRunning })
-                    : setMatch({ ...match, clockRunning: !match.clockRunning })
+                    : setMatch({
+                        ...match,
+                        clockRunning: !match.clockRunning,
+                        ...(!match.clockRunning ? { clockStarted: true } : {}),
+                      })
                 }}
               >
                 {match.breakKind ? (match.breakRunning ? 'Pause' : 'Start') : match.clockRunning ? 'Pause' : 'Start'}
@@ -480,6 +493,21 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
           </div>
         </aside>
       </div>
+
+      {TEST_NUKE_GAME ? (
+        <div className="nuke-zone">
+          <p className="nuke-note">Test only. Wipes this game and goes back to the venue list.</p>
+          <button
+            className="btn nuke-danger"
+            type="button"
+            onClick={() => {
+              if (window.confirm('TEST nuke: wipe this game and go back to venues?')) onClearNext()
+            }}
+          >
+            Nuke
+          </button>
+        </div>
+      ) : null}
 
       {removalPreview ? (
         <div className="modal-bg" onClick={() => setPendingRemoveId(null)}>

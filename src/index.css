@@ -1200,10 +1200,15 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   flex-wrap: wrap;
   gap: 8px;
 }
-/* Three columns so the full name fits and the tap target stays large on a phone and a tablet. */
+/* One code-button height between the code row and Undo / Remove. */
+.live .scoring-actionbar {
+  gap: 56px;
+}
+/* About 30% narrower than a full three-across row. Names still wrap; the tap stays 56px tall. */
 .live .scoring-actionbar .code-btn {
-  flex: 0 0 calc((100% - 16px) / 3);
-  min-width: calc((100% - 16px) / 3);
+  flex: 0 0 calc((100% - 16px) * 0.7 / 3);
+  min-width: calc((100% - 16px) * 0.7 / 3);
+  max-width: calc((100% - 16px) * 0.7 / 3);
   min-height: 56px;
   height: auto;
   padding: 8px 6px;
@@ -1248,18 +1253,40 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   padding: 0 16px;
   font-size: 16px;
 }
-.nuke-quiet {
+.nuke-zone {
   flex: 0 0 auto;
-  min-height: 32px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  background: transparent;
-  color: var(--muted);
-  border: 0;
-  opacity: 0.75;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 28px;
+  padding: 20px 16px;
+  background: #3b0d0d;
+  border-top: 8px solid #ff1f1f;
 }
-.nuke-quiet:hover { opacity: 1; text-decoration: underline; }
+.nuke-note {
+  margin: 0;
+  margin-right: auto;
+  max-width: 420px;
+  color: #ffd2d2;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.btn.nuke-danger {
+  flex: 0 0 auto;
+  min-height: 52px;
+  min-width: 132px;
+  padding: 0 22px;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  background: #ff1f1f;
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 3px #ff1f1f;
+}
 .teams-duo {
   flex: 1;
   min-height: 0;
@@ -1269,6 +1296,46 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 }
 .teams-duo .team-panel {
   overflow: hidden; /* no scroll — all caps on screen */
+}
+.teams-duo .team-panel.prestart {
+  overflow: auto;
+}
+.team-panel.prestart .team-head { padding: 3px 6px; font-size: 12px; }
+.prestart-caps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 4px;
+  padding: 2px 4px 6px;
+  align-content: start;
+}
+.prestart-cap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 24px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+.prestart-cap.selected { outline: 2px solid var(--gold); border-radius: 6px; }
+.prestart-cap .cap {
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  border-radius: 6px;
+  flex: 0 0 auto;
+}
+.prestart-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
 }
 .team-panel.compact .team-table {
   font-size: clamp(11px, 1.1vw, 14px);
@@ -1447,18 +1514,54 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 @media (max-width: 900px) {
   .scoring-main {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) minmax(128px, 22vh);
   }
   .scoring-left { min-height: 0; overflow: hidden; }
-  .scoring-rail { max-height: 38vh; overflow: auto; }
+  /* Clock rail stays usable, but the roster keeps a band so every cap fits before the whistle. */
+  .scoring-rail { max-height: 22vh; overflow: auto; }
+  .teams-duo { flex: 1 1 auto; min-height: 156px; }
+  .live .scoring-actionbar .tools {
+    flex-wrap: nowrap;
+    align-items: center;
+    margin-top: 2px;
+  }
+  .live .scoring-actionbar .tools .field {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .live .scoring-actionbar .tools .field input {
+    min-height: 32px;
+    width: 72px;
+    padding: 2px 6px;
+  }
+  .live .scoring-actionbar .timeouts {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nuke-zone {
+    margin-top: 10px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .nuke-note { font-size: 12px; }
+  .btn.nuke-danger { min-height: 44px; min-width: 96px; font-size: 18px; padding: 0 14px; }
+  .team-panel.prestart .team-head { padding: 2px 4px; font-size: 11px; }
+  .prestart-caps { gap: 1px 3px; padding: 1px 2px 2px; }
+  .prestart-cap { min-height: 22px; gap: 3px; }
+  .prestart-cap .cap { width: 20px; height: 20px; font-size: 10px; }
+  .prestart-name { font-size: 11px; }
   /* One scrolling row of full names. Buttons stay 56px tall; the roster stays on screen. */
   .live .scoring-actionbar .codes {
     flex-wrap: nowrap;
     overflow-x: auto;
   }
   .live .scoring-actionbar .code-btn {
-    flex: 0 0 120px;
-    min-width: 120px;
+    flex: 0 0 84px;
+    min-width: 84px;
+    max-width: 84px;
     min-height: 56px;
   }
   .live-topbar { padding: 4px 8px; gap: 8px; }
