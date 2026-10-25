@@ -1,4 +1,4 @@
-const CACHE = 'wpq-scorecard-v1'
+const CACHE = 'wpq-scorecard-v2'
 const PRECACHE = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -31,7 +31,14 @@ self.addEventListener('fetch', (event) => {
       }
       return res
     } catch (err) {
-      return cached || (await caches.match('/index.html'))
+      if (cached) return cached
+      // Only a page navigation may fall back to the app shell. Returning
+      // index.html for a script or stylesheet makes the app fail to boot.
+      if (req.mode === 'navigate') {
+        const shell = await caches.match('/index.html')
+        if (shell) return shell
+      }
+      throw err
     }
   })())
 })

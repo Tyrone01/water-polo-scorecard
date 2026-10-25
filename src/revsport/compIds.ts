@@ -22,10 +22,22 @@ export const COMP_RULES: Partial<Record<RevSportClubId, CompRule>> = {
   },
 }
 
+/**
+ * AJWP Friday night comp button only (by competition id). Not applied to manual
+ * AJWP imports, and not mixed into the FNC pool lists.
+ * 28040 A grade, 28041 B/C Grade.
+ */
+export const AJWP_FRIDAY_COMP_IDS = ['28040', '28041'] as const
+export const AJWP_FRIDAY_RULE: CompRule = { allow: AJWP_FRIDAY_COMP_IDS }
+
 export type CompDecision = 'load' | 'excluded' | 'not-listed'
 
-export function compDecision(club: RevSportClubId | '', competitionId: string | undefined): CompDecision {
-  const rule = club ? COMP_RULES[club] : undefined
+export function compDecision(
+  club: RevSportClubId | '',
+  competitionId: string | undefined,
+  ruleOverride?: CompRule,
+): CompDecision {
+  const rule = ruleOverride ?? (club ? COMP_RULES[club] : undefined)
   if (!rule) return 'load'
   const id = (competitionId || '').trim()
   if (id && rule.exclude?.includes(id)) return 'excluded'

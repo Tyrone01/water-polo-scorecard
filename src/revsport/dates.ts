@@ -20,6 +20,20 @@ export function sydneyTodayISO(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' })
 }
 
+/** The Friday on or after `todayISO` (YYYY-MM-DD). Today when today is Friday. */
+export function fridayOnOrAfter(todayISO: string): string {
+  const m = todayISO.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return todayISO
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12))
+  if (Number.isNaN(dt.getTime())) return todayISO
+  const add = (5 - dt.getUTCDay() + 7) % 7
+  dt.setUTCDate(dt.getUTCDate() + add)
+  const y = dt.getUTCFullYear()
+  const mo = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const d = String(dt.getUTCDate()).padStart(2, '0')
+  return `${y}-${mo}-${d}`
+}
+
 /**
  * Infer YYYY-MM-DD from a label like "Fri 17 Oct" (no year).
  * Tries year-1 / year / year+1 relative to todayISO and picks the closest.

@@ -1,6 +1,7 @@
 node_modules
 dist
 .DS_Store
+*.tsbuildinfo
 *.local
 
 # Secrets and local tooling — never commit

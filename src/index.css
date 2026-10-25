@@ -572,6 +572,33 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   cursor: pointer;
 }
 .board-hub-back:hover, .board-hub-back:focus-visible { border-color: var(--fnc-gold); outline: none; }
+.board-hub-extra {
+  width: 100%;
+  max-width: 920px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(12px, 1.6vw, 20px);
+  margin-top: 4px;
+}
+.board-hub-extra .board-hub-card {
+  flex: 1 1 200px;
+  max-width: 280px;
+}
+.entry-modal { width: min(440px, 100%); max-height: min(92vh, 640px); overflow: auto; }
+.entry-modal h3 { margin: 0 0 8px; }
+.entry-modal p { margin: 0 0 12px; line-height: 1.4; }
+.entry-list { display: flex; flex-direction: column; gap: 8px; max-height: min(52vh, 420px); overflow: auto; }
+.entry-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.entry-row span { flex: 1; min-width: 0; font-weight: 700; line-height: 1.3; }
+.entry-row .btn { min-height: 44px; flex: 0 0 auto; }
+.entry-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.entry-actions .btn { min-height: 48px; width: 100%; }
 .board-wait {
   align-items: center;
   justify-content: center;
@@ -857,6 +884,7 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
     gap: 18px;
   }
   .board-hub-grid { grid-template-columns: 1fr; }
+  .board-hub-extra .board-hub-card { max-width: none; }
   .board {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1177,8 +1205,13 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   gap: 8px;
 }
 .rail-game-clock {
-  flex: 0 0 auto;
-  padding: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  gap: 10px;
+  padding: 12px 14px;
   border-radius: 12px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1191,9 +1224,10 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   font-size: 12px;
 }
 .clock.game-rail {
-  font-size: clamp(28px, 3.2vw, 40px);
+  font-size: clamp(64px, 12vh, 128px);
   color: var(--fnc-gold);
-  line-height: 1;
+  line-height: 0.9;
+  font-weight: 800;
 }
 
 .clock-row {
@@ -1204,17 +1238,39 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 }
 .siren-btn {
   flex-shrink: 0;
-  font-weight: 700;
+  align-self: center;
+  min-height: 64px;
+  min-width: 88px;
+  font-size: 20px;
+  font-weight: 800;
   letter-spacing: 0.02em;
   background: #5c1a1a;
   border-color: #c44;
   color: #fff;
-  padding: 6px 12px;
+  padding: 0 18px;
 }
 .siren-btn:hover { filter: brightness(1.1); }
-.rail-game-actions { justify-content: flex-start; margin-top: 6px; }
+.rail-game-actions { justify-content: stretch; margin-top: 0; gap: 8px; }
+.rail-game-clock .rail-game-actions .btn {
+  flex: 1 1 0;
+  min-height: 64px;
+  font-size: 22px;
+  padding: 0 8px;
+}
+.rail-game-clock .rail-game-actions .btn:first-child {
+  flex: 1.4 1 0;
+  min-height: 72px;
+  font-size: 26px;
+}
+.rail-game-clock .qtr { margin-top: 0; gap: 8px; }
+.rail-game-clock .qtr .btn {
+  flex: 1 1 0;
+  min-height: 52px;
+  font-size: 18px;
+  padding: 0 6px;
+}
 .rail-shot-clock {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1275,9 +1331,39 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 
 @media (max-width: 900px) {
   .scoring-main { grid-template-columns: 1fr; }
-  .scoring-rail { max-height: 42vh; }
+  .scoring-rail { max-height: 42vh; overflow: auto; }
   .clock.rail-shot-digits { font-size: 64px; }
   .live-topbar-score .tn { display: none; }
+  .rail-game-clock {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 8px;
+  }
+  .rail-shot-clock { flex: 1 1 auto; }
+  .clock.game-rail { font-size: clamp(32px, 9vw, 48px); }
+  .rail-game-clock .siren-btn { min-height: 44px; min-width: 72px; font-size: 16px; padding: 0 12px; }
+  .rail-game-clock .rail-game-actions .btn,
+  .rail-game-clock .rail-game-actions .btn:first-child {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .rail-game-clock .qtr .btn { min-height: 40px; font-size: 14px; }
+}
+@media (min-width: 901px) {
+  .live .scoring-rail .clock.shot.rail-shot-digits {
+    font-size: clamp(72px, 12vw, 140px);
+  }
+}
+@media (max-height: 820px) and (min-width: 901px) {
+  .clock.game-rail { font-size: clamp(64px, 11vh, 112px); }
+  .rail-game-clock .siren-btn { min-height: 56px; font-size: 18px; }
+  .rail-game-clock .rail-game-actions .btn { min-height: 60px; font-size: 22px; }
+  .rail-game-clock .rail-game-actions .btn:first-child { min-height: 68px; font-size: 26px; }
+  .rail-game-clock .qtr .btn { min-height: 48px; font-size: 18px; }
+  .live .scoring-rail .clock.shot.rail-shot-digits {
+    font-size: clamp(56px, 9vh, 88px);
+  }
 }
 @media (max-height: 820px) {
   .team-panel.compact tr { height: 26px; }

@@ -1,7 +1,15 @@
-import { describe, expect, it } from 'vitest'
-import { applyEvent } from './engine'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { applyEvent, deleteEvent, signalSiren, tickClock } from './engine'
 import { demoMatch } from './demo'
-import { boardIdForMatch, boardUrl, buildBoardSnapshot, publicBoardUrl } from './boardPublish'
+import {
+  boardIdForMatch,
+  boardUrl,
+  buildBoardSnapshot,
+  coerceBoardSnapshot,
+  publishBoard,
+  publicBoardUrl,
+  resetBoardPublishState,
+} from './boardPublish'
 
 describe('board snapshot', () => {
   it('maps a demo match score, period, and last events including SU', () => {
@@ -161,5 +169,104 @@ describe('board snapshot meta', () => {
     expect(snap.eventName).toBe('FNC Juniors')
     expect(snap.venueLabel).toBe('Alstonville Aquatic Centre')
     expect(boardIdForMatch(m)).toBe('alstonville')
+  })
+})
+
+describe('spectator snapshot guard', () => {
+  it('keeps a real snapshot and fills in a partial one instead of throwing', () => {
+    let m = { ...demoMatch(), started: true }
+    m = applyEvent(m, { side: 'white', cap: '4', code: 'G', timeRemainingSec: 400 }).match
+    const snap = buildBoardSnapshot(m, 50)
+    expect(coerceBoardSnapshot(snap)).toEqual(snap)
+    const partial = coerceBoardSnapshot({ updatedAt: 5, whiteName: 'A' })
+    expect(partial?.last).toEqual([])
+    expect(partial?.whiteFouls).toEqual([])
+    expect(partial?.white).toBe(0)
+    expect(coerceBoardSnapshot(null)).toBeNull()
+    expect(coerceBoardSnapshot({ cleared: true, updatedAt: 9 })?.cleared).toBe(true)
+  })
+
+  it('drops a deleted goal from the score and the event rail, and leaves the clock running', () => {
+    let m = {
+      ...demoMatch(),
+      started: true,
+      clockRunning: true,
+      clockRemainingSec: 90,
+      shotClockRunning: true,
+      shotClockRemainingSec: 18,
+    }
+    m = applyEvent(m, { side: 'white', cap: '4', code: 'G', timeRemainingSec: 80 }).match
+    m = { ...m, clockRunning: true, clockRemainingSec: 90, shotClockRunning: true, shotClockRemainingSec: 18 }
+    expect(buildBoardSnapshot(m).white).toBe(1)
+    m = deleteEvent(m, m.events[0].id)
+    const snap = buildBoardSnapshot(m)
+    expect(snap.white).toBe(0)
+    expect(snap.blue).toBe(0)
+    expect(snap.last.some((e) => e.code === 'G')).toBe(false)
+    expect(snap.clockRunning).toBe(true)
+    expect(snap.clockRemainingSec).toBe(90)
+  })
+})
+
+describe('live board write rate', () => {
+  afterEach(() => {
+    resetBoardPublishState()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  it('posts once at the start, then at most once a second after a siren', async () => {
+    vi.useFakeTimers()
+    resetBoardPublishState()
+    const fetchMock = vi.fn(async () => new Response('{"ok":true}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    let m = {
+      ...demoMatch(),
+      started: true,
+      clockRunning: true,
+      shotClockRunning: true,
+      clockRemainingSec: 120,
+      shotClockRemainingSec: 20,
+    }
+    publishBoard(m)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    m = signalSiren(m)
+    publishBoard(m)
+    for (let i = 0; i < 8; i++) {
+      m = tickClock(m, 0.25)
+      publishBoard(m)
+    }
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(3)
+    const sent = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body)) as { clockSignal?: { id?: string } }
+    expect(sent.clockSignal?.id).toBe(m.clockSignal?.id)
+  })
+
+  it('sends a goal on the next write, not a burst of clock posts', async () => {
+    vi.useFakeTimers()
+    resetBoardPublishState()
+    const fetchMock = vi.fn(async () => new Response('{"ok":true}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    let m = { ...demoMatch(), started: true, clockRunning: true, clockRemainingSec: 200 }
+    publishBoard(m)
+    await vi.advanceTimersByTimeAsync(0)
+    m = applyEvent(m, { side: 'white', cap: '4', code: 'G', timeRemainingSec: 180 }).match
+    publishBoard(m)
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    const sent = JSON.parse(String((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body)) as {
+      white: number
+      last: { code: string }[]
+    }
+    expect(sent.white).toBe(1)
+    expect(sent.last.some((e) => e.code === 'G')).toBe(true)
+    expect(fetchMock.mock.calls.length).toBeLessThanOrEqual(3)
   })
 })

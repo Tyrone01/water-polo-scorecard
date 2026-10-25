@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { playClockSignal, playClockSound, unlockAudio } from '../audio'
 import { formatTime } from '../engine'
-import type { BoardFoulSummary, BoardLastEvent, BoardRosterPlayer, BoardSnapshot } from '../boardPublish'
+import { coerceBoardSnapshot, type BoardFoulSummary, type BoardLastEvent, type BoardRosterPlayer, type BoardSnapshot } from '../boardPublish'
 
 interface Props {
   id: string
@@ -152,15 +152,15 @@ export function SpectatorBoard({ id }: Props) {
             periodExpiredLocal.current = false
           }
         } else if (res.ok) {
-          const data = (await res.json()) as BoardSnapshot & { cleared?: boolean }
-          if (data.cleared) {
+          const data = coerceBoardSnapshot(await res.json())
+          if (data?.cleared) {
             snapRef.current = null
             setSnap(null)
             shotFloorRef.current = null
             clockFloorRef.current = null
             shotExpiredLocal.current = false
             periodExpiredLocal.current = false
-          } else {
+          } else if (data) {
             const prev = snapRef.current
             // Ignore stale / out-of-order polls — they jump clocks upward on the TV.
             if (!prev || data.updatedAt > prev.updatedAt) {
@@ -317,8 +317,9 @@ export function SpectatorBoard({ id }: Props) {
     shot = wholeShotSeconds(snap.shotClockRemainingSec)
   }
 
-  const whiteEvents = snap.last.filter((e) => e.side === 'white')
-  const blueEvents = snap.last.filter((e) => e.side === 'blue')
+  const last = snap.last ?? []
+  const whiteEvents = last.filter((e) => e.side === 'white')
+  const blueEvents = last.filter((e) => e.side === 'blue')
   const whiteFouls = snap.whiteFouls ?? []
   const blueFouls = snap.blueFouls ?? []
 

@@ -7,6 +7,7 @@ import { emptyTeam, newMatch } from './engine'
 import { clearMatch, loadAdmin, loadMatch, saveMatch } from './storage'
 import { boardIdForMatch, clearBoard, publishBoard } from './boardPublish'
 import { mergeTeamById } from './importApply'
+import { AJWP_FRIDAY_NIGHT } from './revsport/sync'
 import type { Match } from './types'
 
 type Screen = 'venue' | 'setup' | 'live'
@@ -42,6 +43,17 @@ export function App() {
     const v = new URLSearchParams(window.location.search).get('venue')
     return v && /^[a-z0-9_-]{2,48}$/i.test(v) ? v.toLowerCase() : null
   })
+  const [night, setNight] = useState<'ajwp-friday' | null>(() =>
+    new URLSearchParams(window.location.search).get('night') === AJWP_FRIDAY_NIGHT ? AJWP_FRIDAY_NIGHT : null,
+  )
+
+  function leaveNight() {
+    const url = new URL(window.location.href)
+    url.searchParams.delete('night')
+    const qs = url.searchParams.toString()
+    window.history.replaceState(null, '', url.pathname + (qs ? `?${qs}` : ''))
+    setNight(null)
+  }
 
   useEffect(() => {
     if (match) saveMatch(match)
@@ -111,7 +123,9 @@ export function App() {
     return (
       <div className="app">
         <VenueNightScreen
-          initialVenueId={lastVenueId}
+          initialVenueId={night ? null : lastVenueId}
+          night={night}
+          onLeaveNight={leaveNight}
           onStart={startLive}
           onAdvanced={() => {
             setMatchState((prev) => prev ?? demoMatch())

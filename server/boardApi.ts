@@ -112,7 +112,13 @@ export async function handleBoardRequest(
     } catch {
       return json(400, { error: 'invalid json' })
     }
-    await writeBoard(id, body, env)
+    try {
+      await writeBoard(id, body, env)
+    } catch {
+      // KV throws 429 when the same pool key is written more than once a second.
+      // A busy response lets the tablet retry; it must not take down the Worker.
+      return json(503, { error: 'Scoreboard is busy. The table will try again.' })
+    }
     return json(200, { ok: true })
   }
 
