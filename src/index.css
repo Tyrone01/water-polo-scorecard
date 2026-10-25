@@ -1676,6 +1676,82 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   }
   .possession-field select { min-height: 32px; flex: 1; min-width: 0; }
 }
+
+/* Phone portrait, about 360–430px wide. The 900px rules above keep one sideways
+   row of codes, which fits a landscape phone. In portrait only about four codes
+   fit and the rest sit off the screen. Wrap them here so every code, the player
+   line, and the clocks stay inside the width. Wider layouts are unchanged. */
+@media (max-width: 540px) {
+  .live .scoring-actionbar .sel {
+    line-height: 1.25;
+    overflow-wrap: break-word;
+  }
+  .live .scoring-actionbar .tools {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .live .scoring-actionbar .timeouts {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .live .scoring-actionbar .codes {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    flex-wrap: wrap;
+    overflow-x: visible;
+    gap: 6px;
+  }
+  .live .scoring-actionbar .code-btn {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    min-height: 48px;
+    padding: 4px 3px;
+    font-size: 12px;
+    line-height: 1.15;
+  }
+  .clock.game-rail,
+  .clock.rail-shot-digits {
+    line-height: 1;
+  }
+  .rail-game-clock .qtr .btn,
+  .rail-game-clock .siren-btn,
+  .shot-rail-actions .btn {
+    min-width: 0;
+  }
+  .teams-duo .team-head {
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    min-width: 0;
+  }
+  .teams-duo .team-head > div {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+  /* Two rosters share a phone-width screen. Fix the columns so the cap, the
+     name, and the foul boxes stay inside the team. A name that is still too
+     long ellipsizes instead of spilling into the other team; the full name
+     is on the player line once the cap is tapped. */
+  .teams-duo .team-panel.compact .team-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .live .teams-duo .team-panel.compact .team-table td {
+    display: table-cell;
+    overflow: hidden;
+  }
+  /* The running total sits in the team heading. Hiding this column gives the
+     name enough room to stay readable beside the cap and the three foul boxes. */
+  .live .teams-duo .team-panel.compact .team-table td:nth-child(4) { display: none; }
+  .teams-duo .team-panel.compact .team-table td:nth-child(1) { width: 28px; }
+  .teams-duo .team-panel.compact .team-table td:nth-child(3) { width: 52px; }
+  .teams-duo .team-panel.compact .cap { width: 22px; height: 22px; font-size: 11px; }
+  .teams-duo .team-panel.compact .foul { width: 14px; height: 14px; }
+  .teams-duo .team-panel.compact .name-static { font-size: 12px; }
+}
 @media (max-height: 860px) and (min-width: 901px) {
   .nuke-zone {
     margin-top: 0;
