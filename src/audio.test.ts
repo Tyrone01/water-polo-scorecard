@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest'
+import { POOL_HORN_DURATION_SEC } from './audio'
 import { demoMatch } from './demo'
 import { endQuarter, signalSiren, tickClock } from './engine'
 import type { Match } from './types'
+
+/** Previous horn: 0.28s × 3 bursts + 0.11s × 2 gaps + 0.04s tail. */
+const PREVIOUS_HORN_SEC = 0.28 * 3 + 0.11 * 2 + 0.04
+
+describe('pool horn length', () => {
+  it('lasts about a second longer than the 1.1s horn, and stays a short blast', () => {
+    expect(POOL_HORN_DURATION_SEC - PREVIOUS_HORN_SEC).toBeCloseTo(1.02, 2)
+    expect(POOL_HORN_DURATION_SEC).toBeGreaterThan(2)
+    expect(POOL_HORN_DURATION_SEC).toBeLessThan(3)
+  })
+})
 
 function live(partial: Partial<Match> = {}): Match {
   return { ...demoMatch(), started: true, clockSignal: null, ...partial }

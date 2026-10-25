@@ -105,6 +105,31 @@ export function placeholderTeam(name: string, revsportId?: string): Team {
   return { ...emptyTeam(name), ...(revsportId ? { revsportId, rosterMissing: true } : {}) }
 }
 
+/** Caps the table can tap when RevSport has no public player list. */
+export const PLACEHOLDER_ROSTER_COUNT = 11
+
+/**
+ * The yellow “No public player list” notice is `rosterMissing` and zero players.
+ * Fill Placeholder 1–11 so the table can score without opening Setup.
+ * A side that already has players is left alone. Placeholders have no RevSport id.
+ */
+export function withPlaceholderRoster(team: Team): Team {
+  if (team.players.length > 0 || !team.rosterMissing) return team
+  const players: Player[] = []
+  for (let n = 1; n <= PLACEHOLDER_ROSTER_COUNT; n++) {
+    players.push(
+      emptyPlayer({
+        cap: String(n),
+        name: `Placeholder ${n}`,
+        onCard: true,
+        present: true,
+        isFillIn: false,
+      }),
+    )
+  }
+  return { ...team, players, rosterMissing: true }
+}
+
 export function importMetaPatch(match: Match, result: ImportResult): Partial<Match> {
   const officials: Officials = { ...match.officials }
   if (result.referees) {

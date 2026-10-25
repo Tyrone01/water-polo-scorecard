@@ -170,7 +170,11 @@ describe('loadLiveMatch sets sides by team id and flags missing rosters', () => 
       awayTeamId: '443850',
     })
     expect(match!.white.rosterMissing).toBe(true)
-    expect(match!.white.players).toHaveLength(0)
+    expect(match!.white.players.map((p) => p.name)).toEqual(
+      Array.from({ length: 11 }, (_, i) => `Placeholder ${i + 1}`),
+    )
+    expect(match!.white.players.every((p) => p.revsportId == null)).toBe(true)
+    expect(match!.blue.players.every((p) => !p.name.startsWith('Placeholder'))).toBe(true)
     expect(warnings.join('\n')).toMatch(/has no public player list on RevSport/)
   })
 
@@ -182,12 +186,14 @@ describe('loadLiveMatch sets sides by team id and flags missing rosters', () => 
     expect(match!.blue.revsportId).toBe('443848')
   })
 
-  it('a team id that is not on the game page leaves that side empty with a note', async () => {
+  it('a team id that is not on the game page still gets placeholders, plus a note', async () => {
     stubRevSport(pages, teamsFallback)
     const { match, warnings } = await loadLiveMatch({ ...fixture, awayTeamId: '999999' })
     expect(match!.white.revsportId).toBe('443848')
     expect(match!.blue.revsportId).toBe('999999')
-    expect(match!.blue.players).toHaveLength(0)
+    expect(match!.blue.players.map((p) => [p.cap, p.name, p.revsportId ?? ''])).toEqual(
+      Array.from({ length: 11 }, (_, i) => [String(i + 1), `Placeholder ${i + 1}`, '']),
+    )
     expect(warnings.join('\n')).toMatch(/Could not find the away team \(RevSport id 999999\)/)
   })
 })
