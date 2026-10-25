@@ -14,12 +14,17 @@ import {
 } from '../importApply'
 import { expandPendingRounds, fetchRevSport, rosterMissingNote, type Result } from './client'
 import type { RevSportClubId } from './clubs'
-import { compDecision, compDecisionNote } from './compIds'
-import { sydneyTodayISO } from './dates'
+import { AJWP_FRIDAY_RULE, compDecision, compDecisionNote, type CompRule } from './compIds'
+import { fridayOnOrAfter, sydneyTodayISO } from './dates'
 import { competitionIdFromUrl, gameIdFromUrl, teamIdFromUrl } from './ids'
 import type { ImportedGame, ImportedGrade } from './parser'
 
 export const FNC_GAMES_HUB = 'https://www.fncwaterpolo.org.au/games'
+export const AJWP_GAMES_HUB = 'https://www.revolutionise.com.au/ajwp/games'
+/** Query flag for the landing-page Friday comp button. Not a pool id. */
+export const AJWP_FRIDAY_NIGHT = 'ajwp-friday'
+
+export type LiveSource = 'FNC' | 'AJWP'
 
 export interface LiveCompetition {
   /** Path id e.g. "27800/3790" (competition / grade) */
@@ -51,6 +56,8 @@ export interface LiveGame {
   competitionId?: string
   homeTeamId?: string
   awayTeamId?: string
+  /** Which association this fixture was loaded for. Absent on the FNC pool list. */
+  source?: LiveSource
 }
 
 export interface HeldBackCompetition {
@@ -77,6 +84,8 @@ export interface SyncSnapshot {
   /** Competitions on the hub that were not loaded (by RevSport id). */
   heldBack: HeldBackCompetition[]
   warnings: string[]
+  /** Plain note for the Friday list (no association jargon). */
+  notice?: string
   error?: string
 }
 
@@ -219,20 +228,25 @@ export function gamesFromToday(games: LiveGame[], todayISO = sydneyTodayISO()): 
 export function filterGradesById(
   grades: ImportedGrade[],
   club: RevSportClubId | '',
+  rule?: CompRule,
 ): { load: ImportedGrade[]; heldBack: HeldBackCompetition[] } {
   const load: ImportedGrade[] = []
   const heldBack: HeldBackCompetition[] = []
   for (const g of grades) {
     const competitionId = competitionIdFromUrl(g.url)
-    const decision = compDecision(club, competitionId)
+    const decision = compDecision(club, competitionId, rule)
     if (decision === 'load') load.push(g)
     else heldBack.push({ competitionId, label: g.label, url: g.url, reason: decision })
   }
   return { load, heldBack }
 }
 
-/** Fetch all FNC competitions / grades / fixtures and group by venue. */
-export async function syncFncLive(hubUrl = FNC_GAMES_HUB, club: RevSportClubId | '' = 'FNC'): Promise<SyncSnapshot> {
+/** Fetch competitions / grades / fixtures and group by venue. Optional rule is by competition id only. */
+export async function syncFncLive(
+  hubUrl = FNC_GAMES_HUB,
+  club: RevSportClubId | '' = 'FNC',
+  rule?: CompRule,
+): Promise<SyncSnapshot> {
   const fetchedAt = new Date().toISOString()
   const warnings: string[] = []
   const hub = await fetchRevSport(hubUrl)
@@ -251,7 +265,7 @@ export async function syncFncLive(hubUrl = FNC_GAMES_HUB, club: RevSportClubId |
   }
 
   const allGrades = gradesFromHub(hub, hubUrl)
-  const { load: grades, heldBack } = filterGradesById(allGrades, club)
+  const { load: grades, heldBack } = filterGradesById(allGrades, club, rule)
   for (const h of heldBack) warnings.push(compDecisionNote(h.reason, h.competitionId, h.label))
   if (!grades.length) {
     const none = allGrades.length
@@ -316,6 +330,49 @@ export async function syncFncLive(hubUrl = FNC_GAMES_HUB, club: RevSportClubId |
   }
 }
 
+/**
+ * Friday night comp for the landing-page button. Competitions 28040 and 28041
+ * only, matched by id. Games are the Friday on or after today (Sydney), not the
+ * FNC pool list.
+ */
+export async function syncAjwpFridayNight(todayISO = sydneyTodayISO()): Promise<SyncSnapshot> {
+  const snap = await syncFncLive(AJWP_GAMES_HUB, 'AJWP', AJWP_FRIDAY_RULE)
+  const titled = 'AJWP Friday night comp'
+  const tag = (games: LiveGame[]) => games.map((g) => ({ ...g, source: 'AJWP' as const }))
+  if (snap.error && !snap.games.length) {
+    return {
+      ...snap,
+      eventName: titled,
+      games: [],
+      venues: [],
+      warnings: [],
+      error: 'Friday games could not be loaded. Check the connection and tap Refresh.',
+    }
+  }
+  const friday = fridayOnOrAfter(todayISO)
+  let night = tag(snap.games.filter((g) => g.date === friday))
+  let notice: string | undefined
+  if (!night.length) {
+    const nextDate = snap.games
+      .map((g) => g.date)
+      .filter((d): d is string => !!d && d >= todayISO)
+      .sort()[0]
+    if (nextDate) {
+      night = tag(snap.games.filter((g) => g.date === nextDate))
+      notice = 'No games on the coming Friday. Showing the next date that has games.'
+    }
+  }
+  return {
+    ...snap,
+    eventName: titled,
+    games: night,
+    venues: groupGamesByVenue(night),
+    warnings: [],
+    ...(notice ? { notice } : {}),
+    error: night.length ? undefined : 'No Friday games found from today onward.',
+  }
+}
+
 /** Load one game's match info + rosters from RevSport and build a Match. */
 export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; error?: string; warnings: string[] }> {
   const result = await fetchRevSport(game.detailsUrl)
@@ -343,7 +400,10 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
   }
 
   const base = newMatch({
-    eventName: [result.competition || game.competition, grade].filter(Boolean).join(' · ') || 'FNC Water Polo',
+    eventName:
+      game.source === 'AJWP'
+        ? ['AJWP Friday night', grade].filter(Boolean).join(' · ')
+        : [result.competition || game.competition, grade].filter(Boolean).join(' · ') || 'FNC Water Polo',
     stage: stage || 'Round',
     venue: result.venue || game.venueName,
     grade: grade || 'Open',
@@ -363,6 +423,8 @@ export async function loadLiveMatch(game: LiveGame): Promise<{ match?: Match; er
   const patched = { ...base, ...importMetaPatch(base, result), white, blue, sourceUrl: game.detailsUrl }
   // Prefer full venue from match-info over card short name.
   if (result.venue) patched.venue = result.venue
+  // Keep the Friday-comp label. The page title is the grade name, not what officials tapped.
+  if (game.source === 'AJWP') patched.eventName = base.eventName
 
   return { match: patched, warnings }
 }

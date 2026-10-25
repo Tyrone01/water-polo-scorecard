@@ -1,8 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
+import { AppErrorBoundary } from './components/AppError'
 import { SpectatorBoard } from './components/SpectatorBoard'
 import { BOARD_ID_RE, FNC_BOARD_VENUE_IDS, isFncBoardVenueId } from './boardPublish'
+import { AJWP_FRIDAY_NIGHT } from './revsport/sync'
 import './index.css'
 
 const path = window.location.pathname.replace(/\/$/, '') || '/'
@@ -54,6 +56,7 @@ function BoardIndex() {
   const label = venueId ? VENUE_LABELS[venueId] ?? venueId : ''
   const scoreHref = venueId ? `${onPublicBoardHost ? (SCORER_ORIGIN ? `${SCORER_ORIGIN}/` : SCORE_PATH) : '/'}?venue=${encodeURIComponent(venueId)}` : '#'
   const boardHref = venueId ? (onPublicBoardHost ? `/${venueId}` : `/board/${venueId}`) : '#'
+  const ajwpHref = onPublicBoardHost && SCORER_ORIGIN ? `${SCORER_ORIGIN}/?night=${AJWP_FRIDAY_NIGHT}` : `/?night=${AJWP_FRIDAY_NIGHT}`
   return (
     <div className="board board-hub">
       <div className="board-hub-bar" aria-hidden="true" />
@@ -65,13 +68,21 @@ function BoardIndex() {
         </div>
       </header>
       {!venueId ? (
-        <div className="board-hub-grid">
-          {FNC_BOARD_VENUE_IDS.map((id) => (
-            <button key={id} type="button" className="board-hub-card" onClick={() => setVenueId(id)}>
-              <strong>{VENUE_LABELS[id] ?? id}</strong>
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="board-hub-grid">
+            {FNC_BOARD_VENUE_IDS.map((id) => (
+              <button key={id} type="button" className="board-hub-card" onClick={() => setVenueId(id)}>
+                <strong>{VENUE_LABELS[id] ?? id}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="board-hub-extra">
+            <a className="board-hub-card" href={ajwpHref}>
+              <strong>AJWP Friday night comp</strong>
+              <span className="board-hub-path">Friday games</span>
+            </a>
+          </div>
+        </>
       ) : (
         <>
           <div className="board-hub-grid">
@@ -95,15 +106,17 @@ function BoardIndex() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    {isBoardRoute ? (
-      boardId ? (
-        <SpectatorBoard id={boardId} />
+    <AppErrorBoundary>
+      {isBoardRoute ? (
+        boardId ? (
+          <SpectatorBoard id={boardId} />
+        ) : (
+          <BoardIndex />
+        )
       ) : (
-        <BoardIndex />
-      )
-    ) : (
-      <App />
-    )}
+        <App />
+      )}
+    </AppErrorBoundary>
   </React.StrictMode>,
 )
 

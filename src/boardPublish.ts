@@ -198,48 +198,232 @@ export function buildBoardSnapshot(match: Match, now = Date.now()): BoardSnapsho
   return snap
 }
 
-let timer: ReturnType<typeof setTimeout> | null = null
-let pending: Match | null = null
+function num(v: unknown, fallback = 0): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback
+}
 
-function postBoardSnapshot(id: string, body: string): Promise<Response> {
+function optText(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() ? v : undefined
+}
+
+/**
+ * TV polls must not throw if a stored value is partial or from an older build.
+ * Returns null when the payload is not a snapshot. A cleared tombstone is returned
+ * with `cleared: true` so the TV can go back to the waiting screen.
+ */
+export function coerceBoardSnapshot(data: unknown): BoardSnapshot | null {
+  if (!data || typeof data !== 'object') return null
+  const d = data as Partial<BoardSnapshot>
+  if (d.cleared) {
+    return {
+      v: 1,
+      updatedAt: num(d.updatedAt),
+      whiteName: '',
+      blueName: '',
+      white: 0,
+      blue: 0,
+      period: 1,
+      clockRemainingSec: 0,
+      shotClockRemainingSec: 0,
+      clockRunning: false,
+      shotClockRunning: false,
+      clockSignal: null,
+      breakKind: null,
+      breakRemainingSec: 0,
+      breakRunning: false,
+      possession: null,
+      ended: false,
+      last: [],
+      whiteFouls: [],
+      blueFouls: [],
+      started: false,
+      whiteRoster: [],
+      blueRoster: [],
+      cleared: true,
+    }
+  }
+  if (typeof d.updatedAt !== 'number' || !Number.isFinite(d.updatedAt)) return null
+  const period = d.period === 'PSO' || d.period === 1 || d.period === 2 || d.period === 3 || d.period === 4 ? d.period : 1
+  const last = Array.isArray(d.last)
+    ? d.last.filter((e): e is BoardLastEvent => {
+        if (!e || typeof e !== 'object') return false
+        return (e.side === 'white' || e.side === 'blue') && typeof e.code === 'string'
+      })
+    : []
+  const fouls = (rows: unknown): BoardFoulSummary[] =>
+    Array.isArray(rows)
+      ? rows.filter((f): f is BoardFoulSummary => {
+          if (!f || typeof f !== 'object') return false
+          return typeof (f as BoardFoulSummary).cap === 'string' && typeof (f as BoardFoulSummary).pf === 'number'
+        })
+      : []
+  const roster = (rows: unknown): BoardRosterPlayer[] =>
+    Array.isArray(rows)
+      ? rows.filter((p): p is BoardRosterPlayer => {
+          if (!p || typeof p !== 'object') return false
+          return typeof (p as BoardRosterPlayer).cap === 'string' && typeof (p as BoardRosterPlayer).name === 'string'
+        })
+      : []
+  const signal =
+    d.clockSignal && typeof d.clockSignal === 'object' && typeof d.clockSignal.id === 'string' && d.clockSignal.id
+      ? d.clockSignal
+      : null
+  const snap: BoardSnapshot = {
+    v: 1,
+    updatedAt: d.updatedAt,
+    whiteName: typeof d.whiteName === 'string' ? d.whiteName : 'White',
+    blueName: typeof d.blueName === 'string' ? d.blueName : 'Blue',
+    white: num(d.white),
+    blue: num(d.blue),
+    period,
+    clockRemainingSec: num(d.clockRemainingSec),
+    shotClockRemainingSec: num(d.shotClockRemainingSec),
+    clockRunning: Boolean(d.clockRunning),
+    shotClockRunning: Boolean(d.shotClockRunning),
+    clockSignal: signal,
+    breakKind: d.breakKind === 'quarter' || d.breakKind === 'half' ? d.breakKind : null,
+    breakRemainingSec: num(d.breakRemainingSec),
+    breakRunning: Boolean(d.breakRunning),
+    possession: d.possession === 'white' || d.possession === 'blue' ? d.possession : null,
+    ended: Boolean(d.ended),
+    last,
+    whiteFouls: fouls(d.whiteFouls),
+    blueFouls: fouls(d.blueFouls),
+    started: Boolean(d.started),
+    whiteRoster: roster(d.whiteRoster),
+    blueRoster: roster(d.blueRoster),
+  }
+  const grade = optText(d.grade)
+  const stage = optText(d.stage)
+  const eventName = optText(d.eventName)
+  const venueLabel = optText(d.venueLabel)
+  if (grade) snap.grade = grade
+  if (stage) snap.stage = stage
+  if (eventName) snap.eventName = eventName
+  if (venueLabel) snap.venueLabel = venueLabel
+  return snap
+}
+
+/**
+ * Cloudflare KV allows 1 write per second to the same key. A faster put throws
+ * "KV PUT failed: 429 Too Many Requests" and the Worker request fails.
+ * https://developers.cloudflare.com/kv/api/write-key-value-pairs/
+ */
+const MIN_BOARD_WRITE_MS = 1000
+
+let timer: ReturnType<typeof setTimeout> | null = null
+let timerDue = 0
+let pending: Match | null = null
+let writing = false
+let lastWriteAt = -MIN_BOARD_WRITE_MS
+let lastFingerprint = ''
+let inflight: AbortController | null = null
+
+/**
+ * Stable across clock ticks. A sticky clockSignal (the horn id stays on the match)
+ * must not count as a new event on every tick — that used to bypass the debounce
+ * and post about 4 times a second for the rest of the game.
+ */
+function boardFingerprint(match: Match): string {
+  const shot = match.shotClockRemainingSec ?? match.shotClockSec
+  const card = (team: Match['white']) =>
+    team.players
+      .map((p) => `${p.id}:${p.cap}:${p.name}:${p.onCard ? 1 : 0}:${p.struckOff ? 1 : 0}:${personalFoulCount(p)}:${isOutForRemainder(p) ? 1 : 0}`)
+      .join(',')
+  return [
+    match.clockSignal?.id ?? '',
+    match.events.map((e) => e.id).join(','),
+    match.currentPeriod,
+    match.clockRunning ? 'c' : '',
+    match.shotClockRunning ? 's' : '',
+    match.breakRunning ? 'b' : '',
+    match.breakKind ?? '',
+    match.possession ?? '',
+    match.ended ? 'e' : '',
+    match.started ? 'st' : '',
+    match.white.name,
+    match.blue.name,
+    match.clockRunning && match.clockRemainingSec <= 1 ? 'clock-low' : '',
+    match.shotClockRunning && shot <= 1 ? 'shot-low' : '',
+    card(match.white),
+    card(match.blue),
+  ].join('|')
+}
+
+function postBoardSnapshot(id: string, body: string, signal?: AbortSignal): Promise<Response> {
   const headers = { 'Content-Type': 'application/json' }
-  if (!PUBLIC_BOARD_ORIGIN) return fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'POST', headers, body })
+  const init: RequestInit = { method: 'POST', headers, body, signal }
+  if (!PUBLIC_BOARD_ORIGIN) return fetch(`/api/board/${encodeURIComponent(id)}`, init)
   const publicUrl = `${PUBLIC_BOARD_ORIGIN}/api/board/${encodeURIComponent(id)}`
-  return fetch(publicUrl, { method: 'POST', headers, body }).catch(() =>
+  return fetch(publicUrl, init).catch((err) => {
+    if (signal?.aborted) throw err
     /* Offline / no route to board.fncwp.com — same-origin Vite or workers.dev */
-    fetch(`/api/board/${encodeURIComponent(id)}`, { method: 'POST', headers, body }),
-  )
+    return fetch(`/api/board/${encodeURIComponent(id)}`, init)
+  })
+}
+
+function arm(match: Match): void {
+  pending = match
+  if (writing) return
+  const now = Date.now()
+  const urgent = boardFingerprint(match) !== lastFingerprint
+  const gap = Math.max(0, MIN_BOARD_WRITE_MS - (now - lastWriteAt))
+  const delay = urgent ? gap : Math.max(gap, MIN_BOARD_WRITE_MS)
+  const due = now + delay
+  if (timer != null && due >= timerDue) return
+  if (timer != null) clearTimeout(timer)
+  timerDue = due
+  timer = setTimeout(flush, delay)
 }
 
 function flush(): void {
   timer = null
+  timerDue = 0
   const match = pending
   pending = null
-  if (!match) return
-  const body = JSON.stringify(buildBoardSnapshot(match))
-  const id = boardIdForMatch(match)
-  void postBoardSnapshot(id, body).catch(() => {
-    /* tablet scoring still works if the board API is down */
-  })
-}
-
-function clocksNearZero(match: Match): boolean {
-  const shotRem = match.shotClockRemainingSec ?? match.shotClockSec
-  if (match.shotClockRunning && shotRem <= 1) return true
-  if (match.clockRunning && match.clockRemainingSec <= 1) return true
-  return false
-}
-
-/** Debounced ~400ms POST; clock signals and near-zero clocks flush immediately. */
-export function publishBoard(match: Match): void {
-  pending = match
-  if (match.clockSignal || clocksNearZero(match)) {
-    if (timer != null) clearTimeout(timer)
-    timer = setTimeout(flush, 0)
+  if (!match || writing) {
+    if (match) pending = match
     return
   }
-  if (timer != null) return
-  timer = setTimeout(flush, 400)
+  writing = true
+  lastWriteAt = Date.now()
+  lastFingerprint = boardFingerprint(match)
+  const body = JSON.stringify(buildBoardSnapshot(match, lastWriteAt))
+  const id = boardIdForMatch(match)
+  const ctrl = new AbortController()
+  inflight = ctrl
+  void postBoardSnapshot(id, body, ctrl.signal)
+    .then((res) => {
+      if (!res.ok && !pending) pending = match
+    })
+    .catch(() => {
+      /* tablet scoring still works if the board API is down; retry the latest match */
+      if (!ctrl.signal.aborted && !pending) pending = match
+    })
+    .finally(() => {
+      if (inflight === ctrl) inflight = null
+      writing = false
+      if (ctrl.signal.aborted) return
+      if (pending) arm(pending)
+    })
+}
+
+/** At most one KV write per second per pool board. Goals still go out as soon as the gap allows. */
+export function publishBoard(match: Match): void {
+  arm(match)
+}
+
+/** Test helper. Production callers do not use this. */
+export function resetBoardPublishState(): void {
+  if (timer != null) clearTimeout(timer)
+  timer = null
+  timerDue = 0
+  pending = null
+  writing = false
+  lastWriteAt = -MIN_BOARD_WRITE_MS
+  lastFingerprint = ''
+  inflight?.abort()
+  inflight = null
 }
 
 function deleteBoardSnapshot(id: string): Promise<Response> {
@@ -261,8 +445,12 @@ export function clearBoard(boardId: string): void {
     if (timer != null) {
       clearTimeout(timer)
       timer = null
+      timerDue = 0
     }
   }
+  inflight?.abort()
+  inflight = null
+  writing = false
   void deleteBoardSnapshot(id).catch(() => {
     /* clearing is best-effort; tablet still returns to venues */
   })

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { FNC_VENUES, buildMatchFromFixture, type VenueGameFixture, type VenueNight } from '../demo'
 import { quarterLengthSec, uid } from '../engine'
 import {
+  AJWP_FRIDAY_NIGHT,
   FNC_GAMES_HUB,
   loadLiveMatch,
+  syncAjwpFridayNight,
   syncFncLive,
   venueSlug,
   type LiveGame,
@@ -18,6 +20,9 @@ interface Props {
   onAdvanced: () => void
   /** When returning from a finished game, land on this venue's game list. */
   initialVenueId?: string | null
+  /** Landing-page Friday comp. Not mixed into the FNC pool list. */
+  night?: typeof AJWP_FRIDAY_NIGHT | null
+  onLeaveNight?: () => void
 }
 
 function formatNightDate(iso: string): string {
@@ -45,7 +50,8 @@ function startBuiltMatch(built: Match, onStart: (m: Match) => void) {
   })
 }
 
-export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props) {
+export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = null, onLeaveNight }: Props) {
+  const friday = night === AJWP_FRIDAY_NIGHT
   const [snap, setSnap] = useState<SyncSnapshot | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -54,16 +60,18 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
   const [startingId, setStartingId] = useState<string | null>(null)
   const [startMsg, setStartMsg] = useState('')
 
-  async function refresh() {
+  async function refresh(pickSingle = false) {
     setLoading(true)
     setLoadError(null)
     setUseDemo(false)
     try {
-      const next = await syncFncLive(FNC_GAMES_HUB)
+      const next = friday ? await syncAjwpFridayNight() : await syncFncLive(FNC_GAMES_HUB)
       setSnap(next)
       if (next.error || !next.venues.length) {
-        setLoadError(next.error || 'No fixtures found on FNC.')
-      } else if (next.venues.length === 1 && !venueId) {
+        setLoadError(next.error || (friday ? 'No Friday games found.' : 'No fixtures found on FNC.'))
+      } else if (friday && next.venues.length === 1) {
+        setVenueId(next.venues[0].id)
+      } else if (!friday && next.venues.length === 1 && (pickSingle || !venueId)) {
         setVenueId(next.venues[0].id)
       }
     } catch (err) {
@@ -75,12 +83,14 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
   }
 
   useEffect(() => {
-    void refresh()
+    setVenueId(friday ? null : (initialVenueId ?? null))
+    void refresh(friday || !initialVenueId)
+    // friday switches the list (FNC pools vs Friday comp). initialVenueId is the pool to reopen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [friday])
 
   const liveVenues: LiveVenue[] = snap?.venues || []
-  const demoMode = useDemo || (!loading && !!loadError && !liveVenues.length)
+  const demoMode = !friday && (useDemo || (!loading && !!loadError && !liveVenues.length))
 
   const venue: LiveVenue | VenueNight | null = useMemo(() => {
     if (demoMode) return FNC_VENUES.find((v) => v.id === venueId) ?? null
@@ -100,15 +110,29 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
   async function startLiveGame(game: LiveGame) {
     if (!venue) return
     setStartingId(game.id)
-    setStartMsg('Loading teams and venue from FNC…')
+    setStartMsg(friday ? 'Loading teams…' : 'Loading teams and venue from FNC…')
     const { match, error, warnings } = await loadLiveMatch(game)
     setStartingId(null)
     if (!match || error) {
       setStartMsg(error || 'Could not load this game')
       return
     }
-    if (warnings.length) setStartMsg(warnings.join('\n'))
-    else setStartMsg('')
+    if (warnings.length) {
+      setStartMsg(
+        (friday
+          ? warnings.map((w) =>
+              w
+                .replace(/has no public player list on RevSport/gi, 'has no public player list')
+                .replace(/This fixture has no RevSport team ids/g, 'This game has no team ids')
+                .replace(/RevSport id/g, 'id')
+                .replace(/RevSport/g, '')
+                .replace(/\s{2,}/g, ' ')
+                .trim(),
+            )
+          : warnings
+        ).join('\n'),
+      )
+    } else setStartMsg('')
     // Board id is the selected pool (alstonville etc.), not a long RevSport slug.
     // Prefer the selected venue's display name for the scorecard / TV meta line.
     const boardVenueId = boardIdForMatch({ venue: venue.name, boardVenueId: venue.id })
@@ -134,13 +158,19 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
       <header className="venue-chrome">
         <img src="/logo-fnc.jpg" alt="Far North Coast Water Polo" className="fnc-logo" />
         <div className="venue-chrome-text">
-          <h1>FNC Water Polo Scorecard</h1>
+          <h1>{friday ? 'AJWP Friday night comp' : 'FNC Water Polo Scorecard'}</h1>
           <p className="muted">
-            {eventLabel}
-            {!demoMode && snap ? (
+            {friday ? 'Friday games' : eventLabel}
+            {!demoMode && snap && !friday ? (
               <>
                 <br />
                 Live from FNC · {snap.games.length} game{snap.games.length === 1 ? '' : 's'}
+              </>
+            ) : null}
+            {friday && snap && !loadError ? (
+              <>
+                <br />
+                {snap.games.length} game{snap.games.length === 1 ? '' : 's'}
               </>
             ) : null}
           </p>
@@ -149,29 +179,36 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
 
       {loading ? (
         <section className="card venue-pick">
-          <h2>Loading FNC fixtures…</h2>
-          <p className="muted">Pulling competitions, games and venues from fncwaterpolo.org.au</p>
+          <h2>{friday ? 'Loading Friday games…' : 'Loading FNC fixtures…'}</h2>
+          <p className="muted">{friday ? 'Pulling tonight’s games.' : 'Pulling competitions, games and venues from fncwaterpolo.org.au'}</p>
         </section>
       ) : null}
 
       {!loading && loadError && !demoMode ? (
         <section className="card venue-pick">
-          <h2>Could not sync live fixtures</h2>
+          <h2>{friday ? 'Could not load Friday games' : 'Could not sync live fixtures'}</h2>
           <p className="muted">{loadError}</p>
+          {friday && snap?.notice ? <p className="muted">{snap.notice}</p> : null}
           <div className="tools" style={{ justifyContent: 'flex-start', marginTop: 12, gap: 8 }}>
             <button type="button" className="btn primary" onClick={() => void refresh()}>
               Retry
             </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => {
-                setUseDemo(true)
-                setVenueId(null)
-              }}
-            >
-              Use demo venues
-            </button>
+            {friday ? (
+              <button type="button" className="btn" onClick={onLeaveNight}>
+                ← Pools
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setUseDemo(true)
+                  setVenueId(null)
+                }}
+              >
+                Use demo venues
+              </button>
+            )}
             <button type="button" className="btn" onClick={onAdvanced}>
               Advanced setup
             </button>
@@ -181,14 +218,15 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
 
       {!loading && (demoMode || liveVenues.length > 0) && !venue ? (
         <section className="card venue-pick">
-          <h2>Tonight at which pool?</h2>
+          <h2>{friday ? 'Which pool on Friday?' : 'Tonight at which pool?'}</h2>
           {initialVenueId && venueId === initialVenueId && !demoMode ? (
             <p className="muted">
               No games found for {initialVenueId.charAt(0).toUpperCase() + initialVenueId.slice(1)} in the next few days. Pick a pool below.
             </p>
           ) : null}
           {demoMode ? <p className="muted">Demo data — not live FNC.</p> : null}
-          {snap?.warnings?.length && !demoMode ? (
+          {friday && snap?.notice ? <p className="muted">{snap.notice}</p> : null}
+          {snap?.warnings?.length && !demoMode && !friday ? (
             <p className="muted">{snap.warnings.slice(0, 2).join(' ')}</p>
           ) : null}
           <div className="venue-grid">
@@ -201,6 +239,11 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
             ))}
           </div>
           <div className="tools" style={{ justifyContent: 'flex-start', marginTop: 16, gap: 8 }}>
+            {friday ? (
+              <button type="button" className="btn" onClick={onLeaveNight}>
+                ← Pools
+              </button>
+            ) : null}
             {!demoMode ? (
               <button type="button" className="btn" onClick={() => void refresh()}>
                 Refresh fixtures
@@ -220,14 +263,22 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId }: Props)
       {!loading && venue ? (
         <section className="card venue-games">
           <div className="venue-games-head">
-            <button type="button" className="btn small" onClick={() => setVenueId(null)}>
-              ← Venues
+            <button
+              type="button"
+              className="btn small"
+              onClick={() => {
+                if (friday && liveVenues.length <= 1) onLeaveNight?.()
+                else setVenueId(null)
+              }}
+            >
+              {friday && liveVenues.length <= 1 ? '← Pools' : '← Venues'}
             </button>
             <div>
               <h2>{venue.shortName}</h2>
               <p className="muted">{venue.name}</p>
             </div>
           </div>
+          {friday && snap?.notice ? <p className="muted">{snap.notice}</p> : null}
           {startMsg ? <p className="muted">{startMsg}</p> : null}
           <div className="game-night-list">
             {demoMode

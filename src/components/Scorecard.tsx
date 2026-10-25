@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { playClockSignal, unlockAudio } from '../audio'
 import { autoSaveMatchToDrive, retrySaveMatchToDrive } from '../driveClient'
 import { exportResults } from '../csv'
@@ -6,7 +6,6 @@ import {
   applyEvent,
   deleteEvent,
   deriveLiveExclusions,
-  editEvent,
   formatTime,
   parseTimeInput,
   runningScoreFromEvents,
@@ -21,6 +20,7 @@ import {
   tickClock,
 } from '../engine'
 import { boardIdForMatch, publicBoardUrl } from '../boardPublish'
+import { describeEntry, removalConfirmCopy } from '../entryCopy'
 import { LEGEND, TEST_NUKE_GAME, type EventCode, type LogEvent, type Match, type PeriodId, type Player, type Side } from '../types'
 import { Tip } from './Tip'
 import { TeamPanel } from './TeamPanel'
@@ -38,7 +38,8 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
   const [player, setPlayer] = useState<Player | null>(null)
   const [timeStr, setTimeStr] = useState(formatTime(match.clockRemainingSec))
   const [flash, setFlash] = useState<string[]>([])
-  const [edit, setEdit] = useState<LogEvent | null>(null)
+  const [removeOpen, setRemoveOpen] = useState(false)
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
   const lastPlayedSignal = useRef(match.clockSignal?.id ?? null)
 
   useEffect(() => {
@@ -118,8 +119,30 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
   }
 
   const periodLabel = match.currentPeriod === 'PSO' ? 'PSO' : `Q${match.currentPeriod}`
-  const editForm = useMemo(() => edit, [edit])
   const shotSec = Math.max(0, Math.ceil(match.shotClockRemainingSec ?? match.shotClockSec))
+  const pendingRemove = pendingRemoveId ? match.events.find((e) => e.id === pendingRemoveId) ?? null : null
+  const removalPreview = pendingRemove
+    ? removalConfirmCopy(
+        runningScoreFromEvents(match.events),
+        runningScoreFromEvents(deleteEvent(match, pendingRemove.id).events),
+        pendingRemove,
+      )
+    : null
+
+  function askRemove(event: LogEvent) {
+    setRemoveOpen(false)
+    setPendingRemoveId(event.id)
+  }
+
+  function confirmRemove() {
+    const id = pendingRemoveId
+    setPendingRemoveId(null)
+    setRemoveOpen(false)
+    if (!id) return
+    // Anyone who can score this game can remove an entry. Same screen, no extra login.
+    // Functional update so a running clock is not rewound to a stale snapshot.
+    setMatch((prev) => (prev.events.some((e) => e.id === id) ? deleteEvent(prev, id) : prev))
+  }
 
   return (
     <div className="live scoring-layout">
@@ -264,6 +287,20 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
               </div>
             </div>
             <div className="tools">
+              <button
+                className="btn"
+                type="button"
+                disabled={!match.events.length}
+                onClick={() => {
+                  const last = match.events[match.events.length - 1]
+                  if (last) askRemove(last)
+                }}
+              >
+                Undo last entry
+              </button>
+              <button className="btn" type="button" disabled={!match.events.length} onClick={() => setRemoveOpen(true)}>
+                Remove an entry
+              </button>
               <button className="btn" onClick={onSetup}>Setup</button>
               {TEST_NUKE_GAME ? (
                 <button
@@ -473,94 +510,50 @@ export function Scorecard({ match, setMatch, onSetup, onClearNext, onVenues: _on
         </aside>
       </div>
 
-      {editForm ? (
-        <EditModal
-          event={editForm}
-          onClose={() => setEdit(null)}
-          onSave={(patch) => {
-            const r = editEvent(match, editForm.id, patch)
-            if (r.ok) setMatch(r.match)
-            setEdit(null)
-          }}
-          onDelete={() => {
-            setMatch(deleteEvent(match, editForm.id))
-            setEdit(null)
-          }}
-        />
+      {removalPreview ? (
+        <div className="modal-bg" onClick={() => setPendingRemoveId(null)}>
+          <div className="modal entry-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="remove-title">
+            <h3 id="remove-title">{removalPreview.title}</h3>
+            <p>{removalPreview.body}</p>
+            <div className="entry-actions">
+              <button className="btn danger" type="button" onClick={confirmRemove}>
+                Yes, remove it
+              </button>
+              <button className="btn" type="button" onClick={() => setPendingRemoveId(null)}>
+                No, keep it
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
-    </div>
-  )
-}
-
-function EditModal({
-  event,
-  onClose,
-  onSave,
-  onDelete,
-}: {
-  event: LogEvent
-  onClose: () => void
-  onSave: (patch: Partial<LogEvent>) => void
-  onDelete: () => void
-}) {
-  const [cap, setCap] = useState(event.cap)
-  const [side, setSide] = useState(event.side)
-  const [code, setCode] = useState(event.code)
-  const [time, setTime] = useState(event.time)
-  const [period, setPeriodId] = useState(event.period)
-  return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Edit log event</h3>
-        <div className="grid-2">
-          <label className="field">Time<input value={time} onChange={(e) => setTime(e.target.value)} /></label>
-          <label className="field">Cap<input value={cap} onChange={(e) => setCap(e.target.value)} /></label>
-          <label className="field">
-            Side
-            <select value={side} onChange={(e) => setSide(e.target.value as Side)}>
-              <option value="white">White</option>
-              <option value="blue">Blue</option>
-            </select>
-          </label>
-          <label className="field">
-            Code
-            <select value={code} onChange={(e) => setCode(e.target.value as EventCode)}>
-              {LEGEND.map((l) => (
-                <option key={l.code} value={l.code}>{l.code}</option>
+      {removeOpen && !removalPreview ? (
+        <div className="modal-bg" onClick={() => setRemoveOpen(false)}>
+          <div className="modal entry-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="entries-title">
+            <h3 id="entries-title">Remove an entry</h3>
+            <p className="muted">Take out the one that was wrong. The score and the pool TV update. The clock keeps going.</p>
+            <div className="entry-list">
+              {[...match.events].reverse().map((e) => (
+                <div key={e.id} className="entry-row">
+                  <span>
+                    {describeEntry(e)}
+                    {e.score ? <span className="muted"> · {e.score}</span> : null}
+                  </span>
+                  <button className="btn danger" type="button" onClick={() => askRemove(e)}>
+                    Remove
+                  </button>
+                </div>
               ))}
-            </select>
-          </label>
-          <label className="field">
-            Period
-            <select value={String(period)} onChange={(e) => setPeriodId((e.target.value === 'PSO' ? 'PSO' : Number(e.target.value)) as PeriodId)}>
-              <option value="1">Q1</option>
-              <option value="2">Q2</option>
-              <option value="3">Q3</option>
-              <option value="4">Q4</option>
-              <option value="PSO">PSO</option>
-            </select>
-          </label>
+            </div>
+            <div className="entry-actions">
+              <button className="btn" type="button" onClick={() => setRemoveOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="tools" style={{ marginTop: 12 }}>
-          <button className="btn danger" onClick={onDelete}>Delete & recalc</button>
-          <button
-            className="btn primary"
-            onClick={() =>
-              onSave({
-                cap,
-                side,
-                code,
-                time,
-                period,
-                timeRemainingSec: parseTimeInput(time) ?? event.timeRemainingSec,
-              })
-            }
-          >
-            Save & recalc
-          </button>
-        </div>
-      </div>
+      ) : null}
+
     </div>
   )
 }

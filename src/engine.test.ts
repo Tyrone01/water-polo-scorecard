@@ -147,6 +147,52 @@ describe('scoring rules', () => {
     expect(reconcile(rebuild(m)).ok).toBe(true)
   })
 
+  it('deletes the last goal and the score goes back to nil', () => {
+    let m = live(demoMatch())
+    m = stamp(m, 'white', '4', 'G', 400).match
+    expect(runningScoreFromEvents(m.events)).toEqual({ white: 1, blue: 0 })
+    const scorer = m.white.players.find((p) => p.cap === '4')!
+    expect(scorer.goalsQ1).toBe(1)
+    m = deleteEvent(m, m.events[m.events.length - 1].id)
+    expect(m.events).toHaveLength(0)
+    expect(runningScoreFromEvents(m.events)).toEqual({ white: 0, blue: 0 })
+    expect(m.white.players.find((p) => p.cap === '4')!.goalsQ1).toBe(0)
+    expect(reconcile(m).ok).toBe(true)
+  })
+
+  it('deletes an earlier goal and renumbers the score that is left', () => {
+    let m = live(demoMatch())
+    m = stamp(m, 'white', '4', 'G', 400).match
+    m = stamp(m, 'blue', '5', 'G', 300).match
+    const first = m.events[0].id
+    m = deleteEvent(m, first)
+    expect(runningScoreFromEvents(m.events)).toEqual({ white: 0, blue: 1 })
+    expect(m.events[0].score).toBe('0–1')
+    expect(m.white.players.find((p) => p.cap === '4')!.goalsQ1).toBe(0)
+    expect(m.blue.players.find((p) => p.cap === '5')!.goalsQ1).toBe(1)
+  })
+
+  it('delete while the clock is running leaves the clock running', () => {
+    let m = live({
+      ...demoMatch(),
+      clockRunning: true,
+      shotClockRunning: true,
+      clockRemainingSec: 123.5,
+      shotClockRemainingSec: 18,
+    })
+    m = stamp(m, 'blue', '5', 'G', 100).match
+    m = { ...m, clockRunning: true, shotClockRunning: true, clockRemainingSec: 123.5, shotClockRemainingSec: 18 }
+    const id = m.events[m.events.length - 1].id
+    const next = deleteEvent(m, id)
+    expect(next.events.some((e) => e.id === id)).toBe(false)
+    expect(runningScoreFromEvents(next.events)).toEqual({ white: 0, blue: 0 })
+    expect(next.clockRunning).toBe(true)
+    expect(next.shotClockRunning).toBe(true)
+    expect(next.clockRemainingSec).toBe(123.5)
+    expect(next.shotClockRemainingSec).toBe(18)
+    expect(next.currentPeriod).toBe(m.currentPeriod)
+  })
+
   it('custom quarter and shot-clock times from setup', () => {
     let m = live({
       ...demoMatch(),
