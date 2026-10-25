@@ -2,8 +2,13 @@
  * Shareable spectator board snapshots.
  *
  * Storage: Cloudflare KV when `env.SCOREBOARD` is bound (production Worker).
- * Falls back to an in-memory Map for Vite local dev (handleBoardRequest without env).
+ * Falls back to an in-memory Map when KV is not bound (Vite local dev).
+ *
+ * GET is public so pool TVs can poll. PUT, POST, and DELETE are locked.
+ * See server/boardWriteAuth.ts and docs/ACCESS-AND-WRITE-LOCK.md.
  */
+import { authorizeBoardWrite, type BoardWriteDeps, type BoardWriteEnv } from './boardWriteAuth'
+
 const BOARD_ID_RE = /^[a-zA-Z0-9_-]{4,40}$/
 
 const boards = new Map<string, unknown>()
@@ -15,14 +20,20 @@ export interface BoardKvNamespace {
   delete?(key: string): Promise<void>
 }
 
-export interface BoardEnv {
+export interface BoardEnv extends BoardWriteEnv {
   SCOREBOARD?: BoardKvNamespace
 }
 
+/**
+ * `*` stays so pool TVs can GET from any origin without cookies.
+ * Bearer auth is a header, not a cookie, so credentialed CORS is not required.
+ * Allowing the Authorization header does not skip the write lock.
+ */
 const CORS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, PUT, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, Cf-Access-Jwt-Assertion',
+  'Access-Control-Max-Age': '86400',
 }
 
 function json(status: number, body: unknown): Response {
@@ -74,14 +85,16 @@ async function deleteBoard(id: string, env?: BoardEnv): Promise<void> {
 }
 
 /**
- * Handle GET/PUT/POST/OPTIONS `/api/board/:id`.
+ * Handle GET/PUT/POST/DELETE/OPTIONS `/api/board/:id`.
  * Pass `env` from the Worker so snapshots persist in KV across isolates.
- * Vite middleware can omit env (Map-backed localdev).
+ * Vite passes a local env (no KV). Writes are locked unless that env has a
+ * write token, Access settings, or BOARD_WRITE_OPEN=1.
  * Returns null if the path is not a board API route.
  */
 export async function handleBoardRequest(
   request: Request,
   env?: BoardEnv,
+  deps?: BoardWriteDeps,
 ): Promise<Response | null> {
   const url = new URL(request.url)
   const m = url.pathname.match(/^\/api\/board\/([^/]+)$/)
@@ -103,6 +116,11 @@ export async function handleBoardRequest(
       return json(404, { error: 'no board' })
     }
     return json(200, snap)
+  }
+
+  if (request.method === 'PUT' || request.method === 'POST' || request.method === 'DELETE') {
+    const auth = await authorizeBoardWrite(request, env, deps)
+    if (!auth.ok) return json(auth.status, { error: auth.error })
   }
 
   if (request.method === 'PUT' || request.method === 'POST') {

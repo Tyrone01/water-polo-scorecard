@@ -1,6 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "water-polo-scorecard",
+  // Write lock secrets are not stored in this file. Set BOARD_WRITE_TOKEN
+  // with `wrangler preview secret put` for a preview, and separately for
+  // production when that deploy is approved. Leave ACCESS_AUD and
+  // ACCESS_TEAM_DOMAIN unset until Access is turned on. Do not set
+  // BOARD_WRITE_OPEN on a deployed Worker. See docs/ACCESS-AND-WRITE-LOCK.md.
   "compatibility_date": "2026-08-27",
   "main": "worker.ts",
   "workers_dev": true,
