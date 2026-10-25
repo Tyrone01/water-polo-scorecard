@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { demoMatch } from '../demo'
 import { parseDriveFolderId } from '../driveFolder'
+import { resolveDriveTarget } from '../driveTarget'
+import { plainDriveError, bakedOriginList } from '../driveErrors'
 import { boardIdForMatch, publicBoardUrl, publishBoard } from '../boardPublish'
 import { emptyPlayer, periodMinutes, quarterLengthSec, setupIssues, uid } from '../engine'
 import { connectGoogle, googleSessionEmail, hasGoogleSession } from '../googleAuth'
@@ -413,13 +415,8 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
   }
 
   async function onConnectGoogle() {
-    const clientId = admin.googleClientId.trim()
-    if (!clientId) {
-      setGoogleMsg(
-        `Connect Google needs a Google Cloud OAuth Web client ID with JS origins for http://localhost:5173 and ${window.location.origin}.`,
-      )
-      return
-    }
+    const clientId = loadAdmin().googleClientId.trim()
+    const folderLabel = resolveDriveTarget(loadAdmin()).label
     setGoogleBusy(true)
     setGoogleMsg('')
     try {
@@ -430,18 +427,17 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
       setGoogleMsg(email ? `Connected as ${email}` : 'Connected')
     } catch (err) {
       setGoogleConnected(hasGoogleSession())
-      setGoogleMsg(err instanceof Error ? err.message : 'Google connect failed')
+      setGoogleMsg(plainDriveError(err instanceof Error ? err.message : 'Google connect failed', folderLabel))
     } finally {
       setGoogleBusy(false)
     }
   }
 
-  const folderId = parseDriveFolderId(admin.driveFolderUrl) || admin.driveFolderId
+  const driveTarget = resolveDriveTarget(admin)
+  const folderId = parseDriveFolderId(admin.driveFolderUrl) || admin.driveFolderId || driveTarget.folderId
   const lastSave = admin.lastSaveAt
     ? `last save ${new Date(admin.lastSaveAt).toLocaleString()}`
     : 'no save yet'
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-
   const url = match.sourceUrl
   const importedSummary = [match.eventName, match.grade, match.stage, match.date, match.startTime, match.venue]
     .filter(Boolean)
@@ -672,10 +668,18 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
       </details>
 
       <details className="card match-details" open={driveOpen} onToggle={(e) => setDriveOpen(e.currentTarget.open)}>
-        <summary>Club Drive (admin)</summary>
+        <summary>Drive folder (admin) — not needed to save a game</summary>
         <p className="muted" style={{ marginTop: 8 }}>
-          When a match ends, the sheet auto-saves the event log and player summary CSVs into this folder
-          (kept as text/csv, not Google Sheets). Clear for next game stays locked until both files verify.
+          At the end of a game, tap <strong>Save to Drive</strong> on the scorecard. That uploads the event log
+          and the player summary. Officials do not use this screen for a normal save. Optional: sign in here
+          before the first game so the end-of-game tap does not open Google again.
+        </p>
+        <p className="muted">
+          Folder: <a href={driveTarget.folderUrl} target="_blank" rel="noreferrer">{driveTarget.label}</a>
+          {driveTarget.isDefault
+            ? ' — built-in default. Tyrone must confirm this is the right folder for FNC nights.'
+            : ' — custom folder on this tablet.'}
+          {' '}Account to use: admin@ajwp.com.au until Tyrone names another. Scope stays drive.file.
         </p>
         <label className="field">
           Drive folder URL
@@ -691,35 +695,27 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
         ) : (
           <p className="muted">Paste a folder URL containing /folders/FILEID, or a bare Drive id.</p>
         )}
-        <label className="field">
-          Google OAuth client ID (Web)
-          <input
-            value={admin.googleClientId}
-            onChange={(e) => persistAdmin({ ...loadAdmin(), googleClientId: e.target.value })}
-            placeholder="….apps.googleusercontent.com"
-            autoComplete="off"
-          />
-        </label>
-        {!admin.googleClientId.trim() ? (
-          <p className="muted">
-            Connect Google needs a Google Cloud OAuth <strong>Web</strong> client ID with authorised JavaScript
-            origins for <code>http://localhost:5173</code>
-            {origin ? (
-              <>
-                {' '}
-                and <code>{origin}</code>
-              </>
-            ) : (
-              ' and the current preview origin'
-            )}
-            . Do not use a Desktop or iOS client. No client ID is bundled with this app.
-          </p>
-        ) : null}
         <div className="tools" style={{ justifyContent: 'flex-start', marginTop: 8 }}>
-          <button className="btn primary" type="button" disabled={googleBusy} onClick={() => void onConnectGoogle()}>
-            {googleBusy ? 'Connecting…' : 'Connect Google'}
+          <button className="btn" type="button" disabled={googleBusy} onClick={() => void onConnectGoogle()}>
+            {googleBusy ? 'Connecting…' : 'Sign in ahead of the game (optional)'}
           </button>
         </div>
+        <details style={{ marginTop: 10 }}>
+          <summary className="muted">Advanced: Google client ID</summary>
+          <label className="field" style={{ marginTop: 8 }}>
+            Google OAuth client ID (Web)
+            <input
+              value={admin.googleClientId}
+              onChange={(e) => persistAdmin({ ...loadAdmin(), googleClientId: e.target.value })}
+              placeholder="….apps.googleusercontent.com"
+              autoComplete="off"
+            />
+          </label>
+          <p className="muted">
+            The club client ID is already filled in. Authorised page addresses: {bakedOriginList()}. Preview
+            links sign in through https://board.fncwp.com, so a new preview hostname does not need its own origin.
+          </p>
+        </details>
         <p className="muted" style={{ marginTop: 8 }}>
           Google: {googleConnected ? `connected${admin.lastEmail ? ` (${admin.lastEmail})` : ''}` : 'not connected'}
           {' · '}

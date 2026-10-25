@@ -137,6 +137,9 @@ export interface DriveSave {
   logUrl?: string
   summaryUrl?: string
   savedAt?: string
+  accountEmail?: string
+  folderLabel?: string
+  folderUrl?: string
 }
 
 export interface AdminSettings {
@@ -210,7 +213,16 @@ export const STORAGE_KEY = 'wpq-scorecard-v1'
 export const ADMIN_STORAGE_KEY = 'ajwp-scorecard-admin-v1'
 export const DEFAULT_DRIVE_FOLDER_ID = '1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z'
 export const DEFAULT_DRIVE_FOLDER_URL = 'https://drive.google.com/drive/folders/1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z'
+export const DEFAULT_DRIVE_FOLDER_LABEL = 'AJWP POC Scorecards'
+/** Account named on the go-live checklist. The tablet signs in as whoever taps Save. */
+export const CLUB_GOOGLE_ACCOUNT = 'admin@ajwp.com.au'
+/**
+ * drive.file only. A wider Drive scope would show Google's "unverified app" screen.
+ * The signed-in account still needs Editor on the club folder. An existing folder
+ * the app has never been granted can come back "File not found".
+ */
 export const DRIVE_FILE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+export const GOOGLE_SIGNIN_SCOPES = `${DRIVE_FILE_SCOPE} openid email`
 export const DEFAULT_GOOGLE_CLIENT_ID = '251564153707-4d57t4mdibcq9ulvehk7k0jrkgovbm3b.apps.googleusercontent.com'
 
 /** POC only. Set false (or delete the buttons) before a real game. */

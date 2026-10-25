@@ -24,7 +24,7 @@ Centre log: Time, Cap, W/B, code, Score. Score only on goals, always White-Blue.
 Undo last event. Edit or delete a log row to fully recalc.
 End quarter reconciles. Strike off a player not present by Q3.
 Export two CSVs: event log, player summary.
-When the match ends, the sheet auto-saves those same CSVs to the club Google Drive folder and verifies both files before **Clear for next game** unlocks. Wipe returns to Setup and keeps admin Drive / clock settings.
+When the match ends, tap **Save to Drive** on the scorecard. One tap uploads those same CSVs and Drive must confirm both files before **Clear for next game** unlocks. Wipe returns to the venue list and keeps admin Drive / clock settings.
 
 
 ## Legend
@@ -57,8 +57,9 @@ Production: same allow-list as a Cloudflare Worker, or a tiny Node helper. Do no
 Until then, use Paste HTML.
 
 ## Club Drive
-Setup → **Club Drive (admin)**. Default folder is [AJWP POC Scorecards](https://drive.google.com/drive/folders/1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z).
-Connect Google uses a Google Cloud OAuth **Web** client ID (JS origins: `http://localhost:5173` and the current preview origin). Scope: `drive.file`. The page POSTs CSVs through `/api/drive/upload`; files stay `text/csv`.
+End of game → **Save to Drive**. Officials do not open Setup for a normal save.
+Default folder is [AJWP POC Scorecards](https://drive.google.com/drive/folders/1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z). Tyrone must confirm that folder is right for FNC nights. The checklist Google account is `admin@ajwp.com.au`.
+Sign-in uses the built-in OAuth **Web** client. JavaScript origins that must be on that client: `http://localhost:5173`, `https://board.fncwp.com`, and `https://water-polo-scorecard.tyrone-mcgillick.workers.dev`. Preview hostnames sign in through `https://board.fncwp.com`. Scope: `drive.file`. The page POSTs CSVs through `/api/drive/upload`; files stay `text/csv`.
 
 ## Tests
 The test script covers engine rules and the parser against real WPTAS/WPACT HTML fixtures.

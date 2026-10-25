@@ -61,6 +61,52 @@ h1, h2, h3 { margin: 0; }
 .banner a { color: #9fd4ff; font-weight: 700; }
 .banner button { margin-left: auto; min-height: 36px; }
 
+.drive-save {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  background: #123e32;
+  border-bottom: 3px solid var(--fnc-gold);
+  color: #fff;
+}
+.drive-save.saving { background: #5c4300; }
+.drive-save.error { background: #3b0d0d; }
+.drive-save.saved { background: #0d3b24; }
+.drive-save-copy { flex: 1 1 240px; min-width: 0; }
+.drive-save-heading { display: block; font-size: 18px; line-height: 1.2; }
+.drive-save-meta,
+.drive-save-detail,
+.drive-save-note,
+.drive-save-links { margin: 4px 0 0; font-size: 14px; line-height: 1.35; font-weight: 600; }
+.drive-save-note { color: #f3eee4; font-weight: 650; }
+.drive-save a { color: #9fd4ff; font-weight: 800; }
+.drive-save-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.drive-save .btn { margin-left: 0; }
+.drive-save-go { min-height: 52px; font-size: 18px; padding: 0 18px; }
+.drive-oauth {
+  max-width: 440px;
+  margin: 48px auto;
+  padding: 20px;
+  background: var(--panel);
+  border: 2px solid var(--fnc-gold);
+  border-radius: 14px;
+}
+.drive-oauth h1 { font-size: 22px; margin-bottom: 8px; }
+.drive-oauth p { line-height: 1.4; }
+@media (max-width: 700px) {
+  .drive-save { flex-direction: column; }
+  .drive-save-actions { width: 100%; }
+  .drive-save-actions .btn { flex: 1 1 100%; }
+}
+
 .header {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
