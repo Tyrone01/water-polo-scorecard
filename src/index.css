@@ -1176,7 +1176,8 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  /* Clock rail stays a fixed band. The two team columns use the rest of a wide screen. */
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
   gap: 0;
 }
 .scoring-left {
@@ -1200,19 +1201,15 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   flex-wrap: wrap;
   gap: 8px;
 }
-/* One code-button height between the code row and Undo / Remove. */
+/* Tight row. The old 56px gap and 70%-wide tiles crowded the roster and the clock. */
 .live .scoring-actionbar {
-  gap: 56px;
+  gap: 8px;
 }
-/* About 30% narrower than a full three-across row. Names still wrap; the tap stays 56px tall. */
 .live .scoring-actionbar .code-btn {
-  flex: 0 0 calc((100% - 16px) * 0.7 / 3);
-  min-width: calc((100% - 16px) * 0.7 / 3);
-  max-width: calc((100% - 16px) * 0.7 / 3);
-  min-height: 56px;
+  min-height: 44px;
   height: auto;
-  padding: 8px 6px;
-  font-size: 15px;
+  padding: 6px 8px;
+  font-size: 14px;
   line-height: 1.15;
   white-space: normal;
   text-align: center;
@@ -1224,10 +1221,10 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   align-items: center;
 }
 .fix-btn {
-  flex: 1 1 140px;
-  min-height: 56px;
+  flex: 0 0 auto;
+  min-height: 44px;
   padding: 8px 14px;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   background: var(--fnc-gold);
   color: #072426;
@@ -1295,18 +1292,24 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   overflow: hidden;
 }
 .teams-duo .team-panel {
-  overflow: hidden; /* no scroll — all caps on screen */
+  overflow: auto;
 }
 .teams-duo .team-panel.prestart {
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .team-panel.prestart .team-head { padding: 3px 6px; font-size: 12px; }
 .prestart-caps {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px 4px;
-  padding: 2px 4px 6px;
-  align-content: start;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(32px, 1fr);
+  gap: 2px;
+  padding: 4px 8px 8px;
+  align-content: stretch;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 .prestart-cap {
   display: flex;
@@ -1382,18 +1385,22 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  overflow: auto;
   background: #05191b;
   padding: 8px;
   gap: 8px;
 }
 .rail-game-clock {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 3;
   display: flex;
   flex-direction: column;
-  justify-content: space-evenly;
-  gap: 10px;
-  padding: 12px 14px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
   border-radius: 12px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1406,7 +1413,7 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   font-size: 12px;
 }
 .clock.game-rail {
-  font-size: clamp(64px, 12vh, 128px);
+  font-size: clamp(64px, 12vh, 112px);
   color: var(--fnc-gold);
   line-height: 0.9;
   font-weight: 800;
@@ -1421,53 +1428,53 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 .siren-btn {
   flex-shrink: 0;
   align-self: center;
-  min-height: 64px;
-  min-width: 88px;
-  font-size: 20px;
+  min-height: 48px;
+  min-width: 72px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: 0.02em;
   background: #5c1a1a;
   border-color: #c44;
   color: #fff;
-  padding: 0 18px;
+  padding: 0 14px;
 }
 .siren-btn:hover { filter: brightness(1.1); }
-.rail-game-actions { justify-content: stretch; margin-top: 0; gap: 8px; }
+.rail-game-actions { justify-content: stretch; margin-top: 0; gap: 6px; }
 .rail-game-clock .rail-game-actions .btn {
   flex: 1 1 0;
-  min-height: 64px;
-  font-size: 22px;
+  min-height: 44px;
+  font-size: 16px;
   padding: 0 8px;
 }
 .rail-game-clock .rail-game-actions .btn:first-child {
   flex: 1.4 1 0;
-  min-height: 72px;
-  font-size: 26px;
+  min-height: 48px;
+  font-size: 18px;
 }
-.rail-game-clock .qtr { margin-top: 0; gap: 8px; }
+.rail-game-clock .qtr { margin-top: 0; gap: 6px; }
 .rail-game-clock .qtr .btn {
   flex: 1 1 0;
-  min-height: 52px;
-  font-size: 18px;
+  min-height: 40px;
+  font-size: 15px;
   padding: 0 6px;
 }
 .rail-shot-clock {
-  flex: 0 0 auto;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: min-content;
   display: flex;
   flex-direction: column;
-  padding: 12px;
+  padding: 10px 12px;
   border-radius: 14px;
   background: linear-gradient(180deg, #0f3d40 0%, #0c5c60 100%);
   border: 2px solid var(--fnc-gold);
-  box-shadow: 0 8px 30px -8px rgba(13, 138, 142, 0.35);
+  box-shadow: none;
 }
 .clock.rail-shot-digits {
-  font-size: clamp(72px, 12vw, 140px);
+  font-size: clamp(40px, 8vh, 84px);
   line-height: 0.95;
   text-align: center;
   color: #ff6b6b;
-  margin: 8px 0 12px;
+  margin: 2px 0 6px;
   font-weight: 900;
 }
 .shot-rail-actions {
@@ -1476,13 +1483,13 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   gap: 10px;
 }
 .shot-rail-actions .btn {
-  min-height: 56px;
-  font-size: 20px;
+  min-height: 40px;
+  font-size: 16px;
   width: 100%;
 }
 .shot-rail-actions .btn.shot-primary {
-  min-height: 72px;
-  font-size: 26px;
+  min-height: 48px;
+  font-size: 18px;
   background: var(--fnc-gold);
   color: #072426;
   border: 0;
@@ -1511,15 +1518,50 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
 .chip { background: var(--fnc-gold); }
 .chip.break { background: var(--fnc-teal); color: #fff; }
 
+@media (min-width: 901px) {
+  /* Caps stay a modest width so a wide screen does not grow them into huge tiles. */
+  .scoring-actionbar .codes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 6px;
+    max-width: 1480px;
+  }
+  .live .scoring-actionbar .code-btn {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: none;
+    font-size: 13px;
+    padding: 6px 6px;
+  }
+  .prestart-cap { min-height: 0; }
+  .prestart-cap .cap { width: 30px; height: 30px; font-size: 14px; }
+  .prestart-name { font-size: 16px; }
+  .team-panel.compact .team-head { font-size: 14px; padding: 6px 10px; }
+  .team-panel.compact .name-static { font-size: 16px; }
+  .team-panel.compact .team-table { font-size: 16px; height: 100%; }
+  .team-panel.compact tr { height: auto; }
+  .team-panel.compact .cap { width: 32px; height: 32px; font-size: 15px; }
+  .teams-duo .team-panel.compact {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+}
 @media (max-width: 900px) {
   .scoring-main {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) minmax(128px, 22vh);
+    grid-template-rows: minmax(0, 1fr) auto;
   }
   .scoring-left { min-height: 0; overflow: hidden; }
-  /* Clock rail stays usable, but the roster keeps a band so every cap fits before the whistle. */
-  .scoring-rail { max-height: 22vh; overflow: auto; }
-  .teams-duo { flex: 1 1 auto; min-height: 156px; }
+  /* Both clocks stay on screen, side by side. The roster keeps the remaining height. */
+  .scoring-rail {
+    max-height: none;
+    overflow: hidden;
+    flex-direction: row;
+    align-items: stretch;
+  }
+  .teams-duo { flex: 1 1 auto; min-height: 0; }
   .live .scoring-actionbar .tools {
     flex-wrap: nowrap;
     align-items: center;
@@ -1549,20 +1591,28 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   .nuke-note { font-size: 12px; }
   .btn.nuke-danger { min-height: 44px; min-width: 96px; font-size: 18px; padding: 0 14px; }
   .team-panel.prestart .team-head { padding: 2px 4px; font-size: 11px; }
-  .prestart-caps { gap: 1px 3px; padding: 1px 2px 2px; }
-  .prestart-cap { min-height: 22px; gap: 3px; }
-  .prestart-cap .cap { width: 20px; height: 20px; font-size: 10px; }
-  .prestart-name { font-size: 11px; }
-  /* One scrolling row of full names. Buttons stay 56px tall; the roster stays on screen. */
+  .prestart-caps {
+    grid-auto-rows: minmax(32px, auto);
+    gap: 1px;
+    padding: 2px 4px 4px;
+  }
+  .prestart-cap { min-height: 32px; gap: 6px; }
+  .prestart-cap .cap { width: 26px; height: 26px; font-size: 12px; }
+  .prestart-name { font-size: 13px; }
+  /* One scrolling row. Four codes stay on screen; the rest scroll sideways. */
   .live .scoring-actionbar .codes {
+    display: flex;
     flex-wrap: nowrap;
     overflow-x: auto;
+    max-width: none;
   }
   .live .scoring-actionbar .code-btn {
-    flex: 0 0 84px;
-    min-width: 84px;
-    max-width: 84px;
-    min-height: 56px;
+    flex: 0 0 82px;
+    width: 82px;
+    min-width: 82px;
+    max-width: 82px;
+    min-height: 44px;
+    font-size: 12px;
   }
   .live-topbar { padding: 4px 8px; gap: 8px; }
   .live-topbar-meta strong,
@@ -1572,47 +1622,67 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  .fix-btn { flex: 1 1 0; min-width: 96px; min-height: 52px; font-size: 16px; }
-  .setup-side { min-height: 52px; padding: 0 10px; }
-  .clock.rail-shot-digits { font-size: 64px; }
+  .fix-btn { flex: 1 1 0; min-width: 0; min-height: 44px; font-size: 15px; }
+  .setup-side { min-height: 44px; padding: 0 10px; }
+  .clock.rail-shot-digits { font-size: clamp(36px, 11vw, 48px); margin: 0; }
   .live-topbar-score .tn { display: none; }
   .rail-game-clock {
-    flex: 0 0 auto;
+    position: static;
+    flex: 1.15 1 0;
+    min-width: 0;
     justify-content: flex-start;
-    gap: 6px;
-    padding: 8px;
+    gap: 4px;
+    padding: 6px;
   }
-  .rail-shot-clock { flex: 1 1 auto; }
-  .clock.game-rail { font-size: clamp(32px, 9vw, 48px); }
-  .rail-game-clock .siren-btn { min-height: 44px; min-width: 72px; font-size: 16px; padding: 0 12px; }
+  .rail-shot-clock {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    padding: 6px;
+    overflow: hidden;
+  }
+  .clock.game-rail { font-size: clamp(36px, 11vw, 48px); }
+  .rail-game-clock .siren-btn { min-height: 34px; min-width: 52px; font-size: 13px; padding: 0 8px; }
   .rail-game-clock .rail-game-actions .btn,
   .rail-game-clock .rail-game-actions .btn:first-child {
-    min-height: 44px;
-    font-size: 16px;
+    min-height: 34px;
+    font-size: 13px;
   }
-  .rail-game-clock .qtr .btn { min-height: 40px; font-size: 14px; }
-}
-@media (min-width: 901px) {
-  .live .scoring-rail .clock.shot.rail-shot-digits {
-    font-size: clamp(72px, 12vw, 140px);
+  .rail-game-clock .qtr .btn { min-height: 30px; font-size: 12px; padding: 0 2px; }
+  .shot-rail-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
   }
-}
-@media (max-height: 820px) and (min-width: 901px) {
-  .clock.game-rail { font-size: clamp(64px, 11vh, 112px); }
-  .rail-game-clock .siren-btn { min-height: 56px; font-size: 18px; }
-  .rail-game-clock .rail-game-actions .btn { min-height: 60px; font-size: 22px; }
-  .rail-game-clock .rail-game-actions .btn:first-child { min-height: 68px; font-size: 26px; }
-  .rail-game-clock .qtr .btn { min-height: 48px; font-size: 18px; }
-  .live .scoring-rail .clock.shot.rail-shot-digits {
-    font-size: clamp(56px, 9vh, 88px);
+  .shot-rail-actions .btn.shot-primary { grid-column: 1 / -1; }
+  .shot-rail-actions .btn { min-height: 34px; font-size: 13px; }
+  .shot-rail-actions .btn.shot-primary { min-height: 36px; font-size: 15px; }
+  .shot-hint { display: none; }
+  .rail-label { margin-bottom: 0; font-size: 11px; }
+  .rail-shot-clock .rail-label .muted { display: none; }
+  .rail-board-link {
+    display: flex;
+    margin-top: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
   }
+  .rail-board-link .muted { display: none; }
+  .possession-field {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .possession-field select { min-height: 32px; flex: 1; min-width: 0; }
 }
-@media (max-height: 820px) {
-  .team-panel.compact tr { height: 26px; }
-  .team-panel.compact .cap { width: 22px; height: 22px; font-size: 11px; }
-  .shot-rail-actions .btn { min-height: 48px; font-size: 16px; }
-  .shot-rail-actions .btn.shot-primary { min-height: 56px; font-size: 20px; }
-  .clock.rail-shot-digits { font-size: clamp(56px, 10vh, 96px); }
+@media (max-height: 860px) and (min-width: 901px) {
+  .nuke-zone {
+    margin-top: 0;
+    padding: 8px 12px;
+    border-top-width: 4px;
+  }
+  .btn.nuke-danger { min-height: 44px; font-size: 18px; }
 }
 
 /* Team with no public RevSport player list */
