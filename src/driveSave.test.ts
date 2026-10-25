@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { parseDriveFolderId } from './driveFolder'
 import { plainDriveError, blockedOriginMessage } from './driveErrors'
-import { resolveDriveTarget } from './driveTarget'
+import { driveFolderFieldValue, resolveDriveTarget, retainNightPool, withNightPool } from './driveTarget'
+import { importMetaPatch } from './importApply'
+import { newMatch } from './engine'
 import { driveSavePanelModel } from './driveSavePanel'
 import {
   driveOAuthPlan,
@@ -95,8 +98,76 @@ describe('drive folder target', () => {
     })
     expect(resolveDriveTarget({}, { venue: 'Lismore', boardVenueId: 'lismore' }).folderId).toBe('1Vc7PAAbOYFa51HPbWmmn5FWbNEiFzHqS')
     expect(resolveDriveTarget({}, { venueQuery: 'mullumbimby' }).folderId).toBe('1AKr2CS-t0j7fftQfu6A_4yVMGtjUbkg7')
-    expect(resolveDriveTarget({}, { venue: 'Lismore', venueQuery: 'alstonville' }).folderId).toBe('1Vc7PAAbOYFa51HPbWmmn5FWbNEiFzHqS')
     expect(resolveDriveTarget({}, { venue: 'Somewhere else' }).folderId).toBe('1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk')
+  })
+
+  it('uses the pool picked tonight when the fixture names a different pool', () => {
+    const fixtureVenue = {
+      alstonville: 'Mullumbimby Pool',
+      ballina: 'Alstonville Aquatic Centre',
+      lismore: 'Ballina Indoor Pool',
+      mullumbimby: 'Lismore Memorial Baths',
+    } as const
+    const baked = { driveFolderUrl: DEFAULT_DRIVE_FOLDER_URL, driveFolderId: DEFAULT_DRIVE_FOLDER_ID }
+    for (const pool of ['alstonville', 'ballina', 'lismore', 'mullumbimby'] as const) {
+      const byId = resolveDriveTarget({}, { boardVenueId: pool, venue: fixtureVenue[pool] })
+      const byQuery = resolveDriveTarget({}, { venueQuery: pool, venue: fixtureVenue[pool] })
+      expect(byId.folderId).toBe(MON_NIGHT_POOL_FOLDER_IDS[pool])
+      expect(byId.label.toLowerCase()).toContain(pool)
+      expect(byId.isDefault).toBe(true)
+      expect(byQuery.folderId).toBe(MON_NIGHT_POOL_FOLDER_IDS[pool])
+      expect(byQuery.label).toBe(byId.label)
+      // The folder box must not keep showing the baked Alstonville link for another pool.
+      expect(driveFolderFieldValue(baked, byId)).toBe(byId.folderUrl)
+      expect(parseDriveFolderId(driveFolderFieldValue(baked, byId))).toBe(byId.folderId)
+    }
+    // Screenshot: Alstonville picked, fixture text says Mullumbimby, box still has the baked Alstonville id.
+    const als = resolveDriveTarget(baked, {
+      boardVenueId: 'alstonville',
+      venueQuery: 'alstonville',
+      venue: 'Mullumbimby Pool',
+    })
+    expect(als.label).toBe('Alstonville under Mon night (FNC)')
+    expect(als.folderId).toBe('1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk')
+    expect(driveFolderFieldValue(baked, als)).toBe(als.folderUrl)
+    // Tonight's pick beats both the fixture and a different ?venue=.
+    expect(resolveDriveTarget({}, {
+      boardVenueId: 'ballina',
+      venueQuery: 'alstonville',
+      venue: 'Mullumbimby Pool',
+    }).folderId).toBe(MON_NIGHT_POOL_FOLDER_IDS.ballina)
+    // Landing ?venue= beats the fixture when the match has no pool yet.
+    expect(resolveDriveTarget({}, { venue: 'Lismore', venueQuery: 'alstonville' }).folderId).toBe(MON_NIGHT_POOL_FOLDER_IDS.alstonville)
+  })
+
+  it('keeps the picked pool on the match when a fixture import names another venue', () => {
+    const picked = withNightPool(newMatch({ venue: 'Alstonville Aquatic Centre' }), 'alstonville')
+    expect(picked.boardVenueId).toBe('alstonville')
+    const imported = retainNightPool(
+      {
+        ...picked,
+        ...importMetaPatch(picked, {
+          source: 'match-info',
+          teams: [],
+          warnings: [],
+          venue: 'Mullumbimby Pool',
+          grade: '16&U',
+          date: '2026-10-25',
+          startTime: '18:00',
+        }),
+      },
+      'ballina',
+    )
+    expect(imported.venue).toBe('Mullumbimby Pool')
+    expect(imported.boardVenueId).toBe('alstonville')
+    expect(resolveDriveTarget({}, { venue: imported.venue, boardVenueId: imported.boardVenueId }).label).toBe(
+      'Alstonville under Mon night (FNC)',
+    )
+    // No pool yet: Tonight at venue / ?venue= fills it, and a long slug maps to the fixed pool.
+    expect(retainNightPool(newMatch({ venue: 'Mullumbimby Pool' }), 'lismore').boardVenueId).toBe('lismore')
+    expect(withNightPool(newMatch({ boardVenueId: 'mullumbimby' }), 'alstonville-aquatic').boardVenueId).toBe('alstonville')
+    expect(withNightPool(newMatch({ boardVenueId: 'mullumbimby', venue: 'Mullumbimby Pool' }), 'ballina').boardVenueId).toBe('ballina')
+    expect(withNightPool(newMatch({ venue: 'Mullumbimby Pool' }), 'not-a-pool').boardVenueId).toBeUndefined()
   })
 
   it('keeps a custom folder URL even when the game has a pool', () => {

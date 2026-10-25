@@ -41,14 +41,34 @@ function poolFromText(raw: string): FncBoardVenueId | null {
   return isFncBoardVenueId(id) ? id : null
 }
 
-/** FNC pool for this game. Match venue wins over ?venue=. Unknown stays null. */
+/**
+ * FNC pool for this game.
+ * The pool the official picked for tonight wins over the fixture venue text:
+ * `boardVenueId`, then `?venue=` / Tonight at venue, then the venue string.
+ * Unknown stays null (caller falls back to Alstonville).
+ */
 export function poolForVenueHint(hint?: DriveVenueHint): FncBoardVenueId | null {
-  if (hint?.boardVenueId || hint?.venue) {
-    const id = boardIdForMatch({ venue: hint.venue || '', boardVenueId: hint.boardVenueId })
-    if (isFncBoardVenueId(id)) return id
-  }
-  if (hint?.venueQuery) return poolFromText(hint.venueQuery)
-  return null
+  const picked = poolFromText(hint?.boardVenueId || '')
+  if (picked) return picked
+  const fromQuery = poolFromText(hint?.venueQuery || '')
+  if (fromQuery) return fromQuery
+  return poolFromText(hint?.venue || '')
+}
+
+/** Write the pool picked tonight onto the match. A real FNC pool replaces a stale one. */
+export function withNightPool<T extends { boardVenueId?: string }>(match: T, picked?: string | null): T {
+  const pool = poolForVenueHint({ boardVenueId: picked || undefined })
+  if (!pool || match.boardVenueId === pool) return match
+  return { ...match, boardVenueId: pool }
+}
+
+/**
+ * Keep a pool already picked tonight. If the match has none, take `picked`
+ * (`?venue=` or Tonight at venue). A fixture venue string is not a pick.
+ */
+export function retainNightPool<T extends { boardVenueId?: string }>(match: T, picked?: string | null): T {
+  if (poolForVenueHint({ boardVenueId: match.boardVenueId })) return match
+  return withNightPool(match, picked)
 }
 
 export function venueHintFor(
@@ -74,22 +94,31 @@ function builtInTarget(pool: FncBoardVenueId | null): DriveTarget {
   }
 }
 
+type DriveAdminFolder = { driveFolderUrl?: string; driveFolderId?: string }
+
+function explicitFolderId(admin: DriveAdminFolder): string {
+  const fromUrl = parseDriveFolderId(admin.driveFolderUrl || '')
+  const storedId = admin.driveFolderId && isDriveFolderId(admin.driveFolderId) ? admin.driveFolderId.trim() : ''
+  return fromUrl || storedId || ''
+}
+
+/** A pasted folder that is not the baked Alstonville default and not the retired AJWP id. */
+export function isCustomDriveFolder(admin: DriveAdminFolder): boolean {
+  const explicit = explicitFolderId(admin)
+  return !!explicit && explicit !== DEFAULT_DRIVE_FOLDER_ID && explicit !== RETIRED_AJWP_POC_FOLDER_ID
+}
+
 /**
  * Where this tablet's CSVs go.
  * A Setup folder that is not the baked Alstonville default (and not the retired
- * AJWP POC id) wins. Otherwise Save uses the game's pool under Mon night.
- * No pool match falls back to Alstonville.
+ * AJWP POC id) wins. Otherwise Save uses the pool picked for tonight, then the
+ * fixture venue. No pool match falls back to Alstonville.
  */
-export function resolveDriveTarget(
-  admin: { driveFolderUrl?: string; driveFolderId?: string },
-  hint?: DriveVenueHint,
-): DriveTarget {
-  const fromUrl = parseDriveFolderId(admin.driveFolderUrl || '')
-  const storedId = admin.driveFolderId && isDriveFolderId(admin.driveFolderId) ? admin.driveFolderId.trim() : ''
-  const explicit = fromUrl || storedId
-  const custom = !!explicit && explicit !== DEFAULT_DRIVE_FOLDER_ID && explicit !== RETIRED_AJWP_POC_FOLDER_ID
-  if (custom && explicit) {
+export function resolveDriveTarget(admin: DriveAdminFolder, hint?: DriveVenueHint): DriveTarget {
+  if (isCustomDriveFolder(admin)) {
+    const explicit = explicitFolderId(admin)
     const rawUrl = (admin.driveFolderUrl || '').trim()
+    const fromUrl = parseDriveFolderId(rawUrl)
     const folderUrl = rawUrl.startsWith('http') && fromUrl ? rawUrl : folderUrlFor(explicit)
     return {
       folderId: explicit,
@@ -99,4 +128,17 @@ export function resolveDriveTarget(
     }
   }
   return builtInTarget(poolForVenueHint(hint))
+}
+
+/**
+ * Value for the Setup folder box.
+ * A custom paste is shown as typed. The baked Alstonville URL is not a choice —
+ * show the night's pool folder so the box matches the Folder line.
+ */
+export function driveFolderFieldValue(admin: DriveAdminFolder, target: DriveTarget): string {
+  if (isCustomDriveFolder(admin)) {
+    const raw = (admin.driveFolderUrl || '').trim()
+    return raw || target.folderUrl
+  }
+  return target.folderUrl
 }

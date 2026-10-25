@@ -17,7 +17,8 @@ import type { Match } from '../types'
 
 interface Props {
   onStart: (match: Match) => void
-  onAdvanced: () => void
+  /** Pool on screen, if one is open. Null on the pool list. */
+  onAdvanced: (venueId: string | null) => void
   /** When returning from a finished game, land on this venue's game list. */
   initialVenueId?: string | null
   /** Landing-page Friday comp. Not mixed into the FNC pool list. */
@@ -209,7 +210,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
                 Use demo venues
               </button>
             )}
-            <button type="button" className="btn" onClick={onAdvanced}>
+            <button type="button" className="btn" onClick={() => onAdvanced(venueId)}>
               Advanced setup
             </button>
           </div>
@@ -253,7 +254,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
                 Back to live FNC
               </button>
             )}
-            <button type="button" className="btn" onClick={onAdvanced}>
+            <button type="button" className="btn" onClick={() => onAdvanced(venueId)}>
               Advanced setup
             </button>
           </div>
@@ -338,7 +339,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
                 Refresh fixtures
               </button>
             ) : null}
-            <button type="button" className="btn" onClick={onAdvanced}>
+            <button type="button" className="btn" onClick={() => onAdvanced(venueId)}>
               Advanced setup
             </button>
           </div>
