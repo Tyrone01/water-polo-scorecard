@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./googleAuth', () => ({
   getValidAccessToken: vi.fn(async () => 'token-1'),
-  googleSessionEmail: vi.fn(() => 'admin@ajwp.com.au'),
+  googleSessionEmail: vi.fn(() => 'tyrone.mcgillick@gmail.com'),
 }))
 
 import { autoSaveMatchToDrive, retrySaveMatchToDrive, saveMatchToDrive } from './driveClient'
@@ -50,9 +50,10 @@ describe('saveMatchToDrive', () => {
     vi.clearAllMocks()
   })
 
-  it('uploads both CSVs into the AJWP POC folder and verifies them', async () => {
+  it('uploads both CSVs into the Alstonville Mon night folder and verifies them', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { folderId: string; files: { mimeType: string }[] }
+      expect(body.folderId).toBe('1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk')
       expect(body.folderId).toBe(DEFAULT_DRIVE_FOLDER_ID)
       expect(body.files).toHaveLength(2)
       expect(body.files.every((f) => f.mimeType === 'text/csv')).toBe(true)
@@ -64,24 +65,44 @@ describe('saveMatchToDrive', () => {
       })
     })
     vi.stubGlobal('fetch', fetchMock)
-    const match = newMatch({ id: 'game-verified' })
+    const match = newMatch({ id: 'game-verified', venue: 'Alstonville Aquatic Centre', boardVenueId: 'alstonville' })
     const saved = await saveMatchToDrive(match)
     expect(saved.status).toBe('verified')
     expect(saved.logFileId).toBe('log1')
     expect(saved.summaryFileId).toBe('sum1')
-    expect(saved.accountEmail).toBe('admin@ajwp.com.au')
-    expect(saved.folderLabel).toBe('AJWP POC Scorecards')
-    expect(loadAdmin().lastEmail).toBe('admin@ajwp.com.au')
+    expect(saved.accountEmail).toBe('tyrone.mcgillick@gmail.com')
+    expect(saved.folderLabel).toBe('Alstonville under Mon night (FNC)')
+    expect(loadAdmin().lastEmail).toBe('tyrone.mcgillick@gmail.com')
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('says the club folder was not writable, in plain English', async () => {
+  it('uploads a Ballina game into the Ballina pool folder, not the parent Scorecards folder', async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { folderId: string }
+      expect(body.folderId).toBe('1bW0_O_64h36zBaEyqkyxAtuasWf2ugqG')
+      expect(body.folderId).not.toBe('1PzhpHO6y89W3TdenqrEnL4Wz6mQ9Knok')
+      return jsonResponse({
+        files: [
+          { id: 'logb', name: 'event.csv', webViewLink: 'https://drive.google.com/file/d/logb/view' },
+          { id: 'sumb', name: 'summary.csv', webViewLink: 'https://drive.google.com/file/d/sumb/view' },
+        ],
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const saved = await saveMatchToDrive(newMatch({ id: 'game-ballina', venue: 'Ballina Indoor Pool', boardVenueId: 'ballina' }))
+    expect(saved.status).toBe('verified')
+    expect(saved.folderLabel).toBe('Ballina under Mon night (FNC)')
+  })
+
+  it('says the pool folder was not writable, in plain English', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: `File not found: ${DEFAULT_DRIVE_FOLDER_ID}` }, 502)))
     const saved = await saveMatchToDrive(newMatch({ id: 'game-missing-folder' }))
     expect(saved.status).toBe('error')
     expect(saved.error).toContain('Editor')
-    expect(saved.error).toContain('AJWP POC Scorecards')
+    expect(saved.error).toContain('Alstonville under Mon night (FNC)')
+    expect(saved.error).toContain('tyrone.mcgillick@gmail.com')
     expect(saved.error).not.toContain('Paste it in Setup')
+    expect(saved.error).not.toContain('AJWP POC')
   })
 
   it('uploads a custom folder when the tablet has one', async () => {
@@ -102,7 +123,7 @@ describe('saveMatchToDrive', () => {
       })
     })
     vi.stubGlobal('fetch', fetchMock)
-    const saved = await saveMatchToDrive(newMatch({ id: 'game-custom' }))
+    const saved = await saveMatchToDrive(newMatch({ id: 'game-custom', venue: 'Lismore', boardVenueId: 'lismore' }))
     expect(saved.status).toBe('verified')
     expect(saved.folderLabel).toBe('Custom club folder')
   })

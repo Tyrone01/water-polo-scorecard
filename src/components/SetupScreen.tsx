@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { demoMatch } from '../demo'
 import { parseDriveFolderId } from '../driveFolder'
-import { resolveDriveTarget } from '../driveTarget'
+import { AGE_PERIOD_MINUTES, CLUB_GOOGLE_ACCOUNT, DEFAULT_HALF_TIME_BREAK_SEC, DEFAULT_QUARTER_BREAK_SEC, DEFAULT_SHOT_CLOCK_SEC, DEFAULT_SHOT_CLOCK_SHORT_SEC, MAX_FILL_INS, MAX_ON_CARD, PICK_FIXTURES_BY_TODAY, TEST_NUKE_GAME, type AdminSettings, type AgeGroup, type Match, type MatchMode, type Player, type Side, type Team } from '../types'
 import { plainDriveError, bakedOriginList } from '../driveErrors'
 import { boardIdForMatch, publicBoardUrl, publishBoard } from '../boardPublish'
 import { emptyPlayer, periodMinutes, quarterLengthSec, setupIssues, uid } from '../engine'
@@ -22,7 +22,7 @@ import { competitionIdFromUrl } from '../revsport/ids'
 import { filterGradesById } from '../revsport/sync'
 import { isRevSportUrl, type ImportedGame, type ImportedGrade, type ImportedRound, type ImportResult } from '../revsport/parser'
 import { loadAdmin, saveAdmin } from '../storage'
-import { AGE_PERIOD_MINUTES, DEFAULT_HALF_TIME_BREAK_SEC, DEFAULT_QUARTER_BREAK_SEC, DEFAULT_SHOT_CLOCK_SEC, DEFAULT_SHOT_CLOCK_SHORT_SEC, MAX_FILL_INS, MAX_ON_CARD, PICK_FIXTURES_BY_TODAY, TEST_NUKE_GAME, type AdminSettings, type AgeGroup, type Match, type MatchMode, type Player, type Side, type Team } from '../types'
+import { resolveDriveTarget, venueHintFor } from '../driveTarget'
 
 interface Props {
   initial: Match
@@ -416,7 +416,7 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
 
   async function onConnectGoogle() {
     const clientId = loadAdmin().googleClientId.trim()
-    const folderLabel = resolveDriveTarget(loadAdmin()).label
+    const folderLabel = resolveDriveTarget(loadAdmin(), venueHintFor(match)).label
     setGoogleBusy(true)
     setGoogleMsg('')
     try {
@@ -433,7 +433,7 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
     }
   }
 
-  const driveTarget = resolveDriveTarget(admin)
+  const driveTarget = resolveDriveTarget(admin, venueHintFor(match))
   const folderId = parseDriveFolderId(admin.driveFolderUrl) || admin.driveFolderId || driveTarget.folderId
   const lastSave = admin.lastSaveAt
     ? `last save ${new Date(admin.lastSaveAt).toLocaleString()}`
@@ -677,9 +677,9 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
         <p className="muted">
           Folder: <a href={driveTarget.folderUrl} target="_blank" rel="noreferrer">{driveTarget.label}</a>
           {driveTarget.isDefault
-            ? ' — built-in default. Tyrone must confirm this is the right folder for FNC nights.'
-            : ' — custom folder on this tablet.'}
-          {' '}Account to use: admin@ajwp.com.au until Tyrone names another. Scope stays drive.file.
+            ? ' — Mon night pool folder. Save uses Alstonville, Ballina, Lismore, or Mullumbimby from the game venue. An unknown venue uses Alstonville.'
+            : ' — custom folder on this tablet. This replaces the Mon night pool folders.'}
+          {' '}Account to use: {CLUB_GOOGLE_ACCOUNT}. Scope stays drive.file.
         </p>
         <label className="field">
           Drive folder URL

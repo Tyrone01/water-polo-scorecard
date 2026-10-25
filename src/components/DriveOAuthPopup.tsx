@@ -52,7 +52,7 @@ export function DriveOAuthPopup() {
         ) : (
           <>
             <p>
-              Sign in with the club Google account ({CLUB_GOOGLE_ACCOUNT} until Tyrone says otherwise).
+              Sign in as {CLUB_GOOGLE_ACCOUNT}. That personal Gmail is the checklist account until an FNC Google tenant exists.
               The scorecard then files the two CSVs.
             </p>
             <button className="btn primary drive-save-go" type="button" disabled={phase === 'working' || phase === 'done'} onClick={go}>

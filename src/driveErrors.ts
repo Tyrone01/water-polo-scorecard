@@ -23,7 +23,7 @@ export function plainDriveError(raw: string, folderLabel: string): string {
     return blockedOriginMessage()
   }
   if (/access_denied|access blocked|unverified|not completed the google verification|org_internal/i.test(msg)) {
-    return `Google blocked sign-in. Use the club account ${CLUB_GOOGLE_ACCOUNT} until Tyrone switches the OAuth client to Internal. A personal Gmail is refused while the app is still in testing.`
+    return `Google blocked sign-in. This app is in External testing, so only a listed test user can continue. Sign in as ${CLUB_GOOGLE_ACCOUNT}. That personal Gmail is the checklist account until an FNC Google tenant exists.`
   }
   if (/popup_closed|popup_failed|cancelled|canceled|closed the popup/i.test(msg)) {
     return 'Google sign-in was closed. Tap Save to Drive again and finish the Google window.'
@@ -32,7 +32,7 @@ export function plainDriveError(raw: string, folderLabel: string): string {
     return 'The Google window did not open. Allow popups for this site, then tap Save to Drive again.'
   }
   if (/file not found|notfound|insufficient permissions|insufficientfilepermissions|appnotauthorizedtofile|the user does not have sufficient permissions/i.test(msg)) {
-    return `Signed in, but this Google account could not add files to ${folderLabel}. Share that folder with the account as Editor, then tap Retry. The built-in folder is still AJWP POC Scorecards — Tyrone must confirm that is the right folder for FNC nights. This sign-in can only see files the app is allowed to use (drive.file), so an existing folder can look missing.`
+    return `Signed in, but this Google account could not add files to ${folderLabel}. Share that folder with ${CLUB_GOOGLE_ACCOUNT} as Editor, then tap Retry. With no custom folder, Mon night saves use the pool folder on this personal Drive until an FNC Google tenant exists. This sign-in can only see files the app is allowed to use (drive.file), so an existing folder can look missing.`
   }
   if (/failed to load google identity|is not loaded/i.test(msg)) {
     return "Google sign-in didn't load. Check the tablet's internet and tap Save to Drive again."

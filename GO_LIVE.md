@@ -7,9 +7,20 @@ POC defaults stay until a real game night. Flip these when you go live. Do not w
 - [ ] `TEST_NUKE_GAME` → `false` (or delete the red TEST: nuke game buttons). Wipes a match without Drive save.
 - [ ] `PICK_FIXTURES_BY_TODAY` → `true`. Competition listing URLs then auto-pick the most likely round/game for **today**. A pasted `/round/N` URL still honours that round.
 
-## Google / Drive (admin@ajwp.com.au)
+## Google / Drive (tyrone.mcgillick@gmail.com)
 
 Pool path after this build: finish the game, tap **Save to Drive** on the scorecard. Do not send officials through Setup.
+
+Interim until an FNC Google tenant exists. One-tap save lands in Tyrone's personal Drive, in the pool folder under [2026-10-26 Mon night](https://drive.google.com/drive/folders/1ApnMIwIgNVTo_vHmmKm4FmQCzzEAImpF) (parent [FNC Water Polo Scorecards](https://drive.google.com/drive/folders/1PzhpHO6y89W3TdenqrEnL4Wz6mQ9Knok)). Checklist account is `tyrone.mcgillick@gmail.com`.
+
+Save picks the folder from the game venue (`boardVenueId`, then the venue name, then `?venue=`):
+
+- Alstonville → [1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk](https://drive.google.com/drive/folders/1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk)
+- Ballina → [1bW0_O_64h36zBaEyqkyxAtuasWf2ugqG](https://drive.google.com/drive/folders/1bW0_O_64h36zBaEyqkyxAtuasWf2ugqG)
+- Lismore → [1Vc7PAAbOYFa51HPbWmmn5FWbNEiFzHqS](https://drive.google.com/drive/folders/1Vc7PAAbOYFa51HPbWmmn5FWbNEiFzHqS)
+- Mullumbimby → [1AKr2CS-t0j7fftQfu6A_4yVMGtjUbkg7](https://drive.google.com/drive/folders/1AKr2CS-t0j7fftQfu6A_4yVMGtjUbkg7)
+
+No venue match uses Alstonville. Files do not go in the parent Scorecards folder or the Mon night folder itself. A custom folder pasted in Setup → Drive folder (admin) wins over this map.
 
 - [ ] On OAuth Web client `251564153707-4d57t4mdibcq9ulvehk7k0jrkgovbm3b`, set authorised JavaScript origins (no trailing slash) to exactly:
   - `http://localhost:5173`
@@ -17,10 +28,9 @@ Pool path after this build: finish the game, tap **Save to Drive** on the scorec
   - `https://board.fncwp.com`
   - `https://water-polo-scorecard.tyrone-mcgillick.workers.dev`
 - [ ] Do not add each preview hostname. Preview links sign in through `https://board.fncwp.com/drive-oauth` after this build is on that host.
-- [ ] Attach GCP project `ajwp-scorecard` to the AJWP Workspace organisation so **Internal** is available.
-- [ ] Switch the OAuth Web client from External (testing, test user only) to Internal. Until then, only a listed test user can sign in. Use `admin@ajwp.com.au`.
-- [ ] Confirm that account is an Editor on [AJWP POC Scorecards](https://drive.google.com/drive/folders/1zoopKHp_dBAtYVKHSmD-MUjkkZ3cOp8Z). Scope stays `drive.file`. If Drive says the folder is missing, the app cannot see a folder it did not create — confirm this folder is the one FNC nights should use, or paste another folder URL in Setup → Drive folder (admin). Do not invent a folder id in code.
-- [ ] Sign in once on `https://board.fncwp.com`, end a dummy game, tap Save to Drive, confirm both CSVs land in that folder.
+- [ ] Leave the OAuth Web client on External (testing). `tyrone.mcgillick@gmail.com` must be a listed test user. That personal Gmail is the checklist account for now.
+- [ ] Confirm that account is an Editor on the four pool folders above. Scope stays `drive.file`. If Drive says the folder is missing, the app cannot see a folder it did not create — paste another folder URL in Setup → Drive folder (admin). Do not invent a folder id in code.
+- [ ] Sign in once on `https://board.fncwp.com`, end a dummy game at Alstonville, tap Save to Drive, confirm both CSVs land in the Alstonville pool folder (not the parent Scorecards folder).
 
 ## Host
 
@@ -37,6 +47,6 @@ Pool path after this build: finish the game, tap **Save to Drive** on the scorec
 ## Night-before smoke test
 
 1. Fetch the **tonight** fixtures URL (or the round URL) and pick the first game.
-2. On https://board.fncwp.com, log a dummy G, end the game, tap Save to Drive, confirm two CSVs land in the club folder.
+2. On https://board.fncwp.com, log a dummy G, end the game, tap Save to Drive, confirm two CSVs land in that venue's Mon night pool folder (Alstonville if the venue did not match).
 3. Open the shareable board URL on a second device.
 4. Nuke is gone. Clear for next game still works after a verified save.

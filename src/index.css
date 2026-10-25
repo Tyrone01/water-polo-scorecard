@@ -1200,10 +1200,15 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   flex-wrap: wrap;
   gap: 8px;
 }
-/* Three columns so the full name fits and the tap target stays large on a phone and a tablet. */
+/* One code-button height between the code row and Undo / Remove. */
+.live .scoring-actionbar {
+  gap: 56px;
+}
+/* About 30% narrower than a full three-across row. Names still wrap; the tap stays 56px tall. */
 .live .scoring-actionbar .code-btn {
-  flex: 0 0 calc((100% - 16px) / 3);
-  min-width: calc((100% - 16px) / 3);
+  flex: 0 0 calc((100% - 16px) * 0.7 / 3);
+  min-width: calc((100% - 16px) * 0.7 / 3);
+  max-width: calc((100% - 16px) * 0.7 / 3);
   min-height: 56px;
   height: auto;
   padding: 8px 6px;
@@ -1248,18 +1253,40 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
   padding: 0 16px;
   font-size: 16px;
 }
-.nuke-quiet {
+.nuke-zone {
   flex: 0 0 auto;
-  min-height: 32px;
-  padding: 0 8px;
-  font-size: 12px;
-  font-weight: 600;
-  background: transparent;
-  color: var(--muted);
-  border: 0;
-  opacity: 0.75;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px 16px;
+  margin-top: 28px;
+  padding: 20px 16px;
+  background: #3b0d0d;
+  border-top: 8px solid #ff1f1f;
 }
-.nuke-quiet:hover { opacity: 1; text-decoration: underline; }
+.nuke-note {
+  margin: 0;
+  margin-right: auto;
+  max-width: 420px;
+  color: #ffd2d2;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.btn.nuke-danger {
+  flex: 0 0 auto;
+  min-height: 52px;
+  min-width: 132px;
+  padding: 0 22px;
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  background: #ff1f1f;
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 3px #ff1f1f;
+}
 .teams-duo {
   flex: 1;
   min-height: 0;
@@ -1457,8 +1484,9 @@ details.match-details:not([open]) > *:not(summary) { display: none !important; }
     overflow-x: auto;
   }
   .live .scoring-actionbar .code-btn {
-    flex: 0 0 120px;
-    min-width: 120px;
+    flex: 0 0 84px;
+    min-width: 84px;
+    max-width: 84px;
     min-height: 56px;
   }
   .live-topbar { padding: 4px 8px; gap: 8px; }

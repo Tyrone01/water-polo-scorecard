@@ -1,6 +1,6 @@
 import { eventLogCsv, eventLogFilename, playerSummaryCsv, playerSummaryFilename } from './csv'
 import { plainDriveError } from './driveErrors'
-import { resolveDriveTarget } from './driveTarget'
+import { resolveDriveTarget, venueHintFor } from './driveTarget'
 import { getValidAccessToken, googleSessionEmail } from './googleAuth'
 import { loadAdmin, saveAdmin } from './storage'
 import type { DriveSave, Match } from './types'
@@ -35,7 +35,7 @@ async function postUpload(body: {
 
 export async function saveMatchToDrive(match: Match): Promise<DriveSave> {
   const admin = loadAdmin()
-  const target = resolveDriveTarget(admin)
+  const target = resolveDriveTarget(admin, venueHintFor(match))
   const base = { folderLabel: target.label, folderUrl: target.folderUrl }
   if (!target.folderId) {
     return { status: 'error', ...base, error: `No Drive folder on this tablet. Ask Tyrone to confirm ${target.label}.` }
