@@ -22,7 +22,7 @@ import { competitionIdFromUrl } from '../revsport/ids'
 import { filterGradesById } from '../revsport/sync'
 import { isRevSportUrl, type ImportedGame, type ImportedGrade, type ImportedRound, type ImportResult } from '../revsport/parser'
 import { loadAdmin, saveAdmin } from '../storage'
-import { resolveDriveTarget, venueHintFor } from '../driveTarget'
+import { driveFolderFieldValue, resolveDriveTarget, retainNightPool, venueHintFor } from '../driveTarget'
 
 interface Props {
   initial: Match
@@ -88,6 +88,14 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
   const [clockOpen, setClockOpen] = useState(false)
   const [driveOpen, setDriveOpen] = useState(false)
   const [matchDetailsOpen, setMatchDetailsOpen] = useState(false)
+  // While the official is typing a folder URL, show exactly that text.
+  // Otherwise the box shows the night's pool folder, not the baked Alstonville link.
+  const [folderDraft, setFolderDraft] = useState<string | null>(null)
+
+  function landingVenue(): string | null {
+    if (typeof location === 'undefined') return null
+    return new URLSearchParams(location.search).get('venue')
+  }
 
   const issues = setupIssues(match)
 
@@ -118,6 +126,14 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
   useEffect(() => {
     publishBoard(match)
   }, [match])
+
+  useEffect(() => {
+    const q = landingVenue()
+    if (!q) return
+    setMatch((m) => retainNightPool(m, q))
+    // Landing ?venue= fills an empty night pool once. It does not override a pool already picked.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function patch(p: Partial<Match>) {
     setMatch((m) => {
@@ -155,7 +171,7 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
       idNotes.push('This page does not say which team is home, so White and Blue follow the page. Check they are the right way round.')
     }
     setMatch((m) => {
-      let next = { ...m, ...importMetaPatch(m, result) }
+      let next = retainNightPool({ ...m, ...importMetaPatch(m, result) }, landingVenue())
       if (sourceUrl) next.sourceUrl = sourceUrl
       // A game page replaces the game's RevSport ids. A team or roster page for one of this
       // game's teams (by team id), or a page with no ids at all, keeps them.
@@ -203,7 +219,7 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
     setPendingRoundUrls(pendingFrom(result))
     setAllDates(false)
     setPickerOpen(true)
-    setMatch((m) => ({ ...m, ...importMetaPatch(m, result) }))
+    setMatch((m) => retainNightPool({ ...m, ...importMetaPatch(m, result) }, landingVenue()))
     const dates = uniqueGameDates(list)
     const today = sydneyTodayISO()
     const focus = dates.length ? pickRelevantDate(dates, today) : undefined
@@ -406,6 +422,7 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
   }
 
   function updateFolderUrl(raw: string) {
+    setFolderDraft(raw)
     const id = parseDriveFolderId(raw)
     persistAdmin({
       ...loadAdmin(),
@@ -434,7 +451,8 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
   }
 
   const driveTarget = resolveDriveTarget(admin, venueHintFor(match))
-  const folderId = parseDriveFolderId(admin.driveFolderUrl) || admin.driveFolderId || driveTarget.folderId
+  const folderId = driveTarget.folderId
+  const folderInput = folderDraft ?? driveFolderFieldValue(admin, driveTarget)
   const lastSave = admin.lastSaveAt
     ? `last save ${new Date(admin.lastSaveAt).toLocaleString()}`
     : 'no save yet'
@@ -677,14 +695,14 @@ export function SetupScreen({ initial, onStart, onReset, onNuke, onBackToVenues 
         <p className="muted">
           Folder: <a href={driveTarget.folderUrl} target="_blank" rel="noreferrer">{driveTarget.label}</a>
           {driveTarget.isDefault
-            ? ' — Mon night pool folder. Save uses Alstonville, Ballina, Lismore, or Mullumbimby from the game venue. An unknown venue uses Alstonville.'
+            ? ' — Mon night pool folder for the pool picked tonight. A game imported from another pool does not change this folder. If no pool was picked, Alstonville is used.'
             : ' — custom folder on this tablet. This replaces the Mon night pool folders.'}
           {' '}Account to use: {CLUB_GOOGLE_ACCOUNT}. Scope stays drive.file.
         </p>
         <label className="field">
           Drive folder URL
           <input
-            value={admin.driveFolderUrl}
+            value={folderInput}
             onChange={(e) => updateFolderUrl(e.target.value)}
             placeholder="https://drive.google.com/drive/folders/…"
             autoComplete="off"

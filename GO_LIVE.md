@@ -13,7 +13,7 @@ Pool path after this build: finish the game, tap **Save to Drive** on the scorec
 
 Interim until an FNC Google tenant exists. One-tap save lands in Tyrone's personal Drive, in the pool folder under [2026-10-26 Mon night](https://drive.google.com/drive/folders/1ApnMIwIgNVTo_vHmmKm4FmQCzzEAImpF) (parent [FNC Water Polo Scorecards](https://drive.google.com/drive/folders/1PzhpHO6y89W3TdenqrEnL4Wz6mQ9Knok)). Checklist account is `tyrone.mcgillick@gmail.com`.
 
-Save picks the folder from the game venue (`boardVenueId`, then the venue name, then `?venue=`):
+Save picks the folder from the pool the official picked for tonight (`boardVenueId`, then `?venue=` / Tonight at venue), then the fixture venue name:
 
 - Alstonville → [1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk](https://drive.google.com/drive/folders/1RrmsmFxqns-C_9ADhZaYQtUE4ElYiESk)
 - Ballina → [1bW0_O_64h36zBaEyqkyxAtuasWf2ugqG](https://drive.google.com/drive/folders/1bW0_O_64h36zBaEyqkyxAtuasWf2ugqG)

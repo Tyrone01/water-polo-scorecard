@@ -146,6 +146,8 @@ export function importMetaPatch(match: Match, result: ImportResult): Partial<Mat
     grade: result.grade || match.grade,
     stage: result.round || match.stage,
     venue,
+    // Fixture venue text must not drop the pool the official picked tonight.
+    ...(match.boardVenueId ? { boardVenueId: match.boardVenueId } : {}),
     date: result.date || match.date,
     startTime: result.startTime || match.startTime,
     officials,

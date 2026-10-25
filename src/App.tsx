@@ -7,6 +7,7 @@ import { demoMatch } from './demo'
 import { emptyTeam, newMatch } from './engine'
 import { clearMatch, loadAdmin, loadMatch, saveMatch } from './storage'
 import { boardIdForMatch, clearBoard, publishBoard } from './boardPublish'
+import { poolForVenueHint, withNightPool } from './driveTarget'
 import { mergeTeamById } from './importApply'
 import { isDriveOauthPath } from './googleOrigins'
 import { AJWP_FRIDAY_NIGHT } from './revsport/sync'
@@ -134,8 +135,13 @@ function ScoreApp() {
           night={night}
           onLeaveNight={leaveNight}
           onStart={startLive}
-          onAdvanced={() => {
-            setMatchState((prev) => prev ?? demoMatch())
+          onAdvanced={(picked) => {
+            // The pool on screen (or the landing ?venue=) is the night's pool,
+            // even when a saved game or a later fixture names a different venue.
+            const chosen = (picked || lastVenueId || '').trim()
+            const pool = poolForVenueHint({ boardVenueId: chosen })
+            if (pool) setLastVenueId(pool)
+            setMatchState((prev) => withNightPool(prev ?? demoMatch(), chosen || null))
             setScreen('setup')
           }}
         />
