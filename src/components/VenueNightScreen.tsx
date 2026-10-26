@@ -3,16 +3,16 @@ import { FNC_VENUES, buildMatchFromFixture, type VenueGameFixture, type VenueNig
 import { quarterLengthSec, uid } from '../engine'
 import {
   AJWP_FRIDAY_NIGHT,
-  FNC_GAMES_HUB,
   loadLiveMatch,
   syncAjwpFridayNight,
-  syncFncLive,
+  syncVenueNightLive,
   venueSlug,
   type LiveGame,
   type LiveVenue,
   type SyncSnapshot,
 } from '../revsport/sync'
 import { boardIdForMatch, isFncBoardVenueId } from '../boardPublish'
+import { pickVenueForPool, poolListNote } from '../poolMatch'
 import type { Match } from '../types'
 
 interface Props {
@@ -21,7 +21,7 @@ interface Props {
   onAdvanced: (venueId: string | null) => void
   /** When returning from a finished game, land on this venue's game list. */
   initialVenueId?: string | null
-  /** Landing-page Friday comp. Not mixed into the FNC pool list. */
+  /** Landing-page Friday comp button. Separate from the FNC pool list. */
   night?: typeof AJWP_FRIDAY_NIGHT | null
   onLeaveNight?: () => void
 }
@@ -33,6 +33,12 @@ function formatNightDate(iso: string): string {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   return `${days[dt.getUTCDay()]} ${dt.getUTCDate()} ${months[dt.getUTCMonth()]} ${m[1]}`
+}
+
+/** "FNC", "AJWP", or "FNC and AJWP", from the games that actually loaded. */
+function liveSourceLabel(games: LiveGame[]): string {
+  const sources = [...new Set(games.map((g) => g.source || 'FNC'))]
+  return sources.length ? sources.join(' and ') : 'FNC'
 }
 
 function startBuiltMatch(built: Match, onStart: (m: Match) => void) {
@@ -58,34 +64,62 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
   const [loading, setLoading] = useState(true)
   const [useDemo, setUseDemo] = useState(false)
   const [venueId, setVenueId] = useState<string | null>(initialVenueId ?? null)
+  /** Set only after Option A opens a venue, or the official taps a card. */
+  const [openedId, setOpenedId] = useState<string | null>(null)
+  const [listNote, setListNote] = useState<string | null>(null)
   const [startingId, setStartingId] = useState<string | null>(null)
   const [startMsg, setStartMsg] = useState('')
 
-  async function refresh(pickSingle = false) {
+  async function refresh(pickSingle = false, requestedOverride?: string | null) {
+    const requested = friday ? null : (requestedOverride !== undefined ? requestedOverride : venueId)
     setLoading(true)
     setLoadError(null)
     setUseDemo(false)
     try {
-      const next = friday ? await syncAjwpFridayNight() : await syncFncLive(FNC_GAMES_HUB)
+      const next = friday ? await syncAjwpFridayNight() : await syncVenueNightLive()
       setSnap(next)
       if (next.error || !next.venues.length) {
+        setOpenedId(null)
+        setListNote(null)
         setLoadError(next.error || (friday ? 'No Friday games found.' : 'No fixtures found on FNC.'))
-      } else if (friday && next.venues.length === 1) {
-        setVenueId(next.venues[0].id)
-      } else if (!friday && next.venues.length === 1 && (pickSingle || !venueId)) {
-        setVenueId(next.venues[0].id)
+      } else {
+        const pick = pickVenueForPool(next.venues, {
+          requestedPoolId: requested,
+          allowSoleVenue: friday || pickSingle || !requested,
+        })
+        if (pick.venue && (pick.reason === 'matched' || pick.reason === 'sole')) {
+          setOpenedId(pick.venue.id)
+          setVenueId(pick.venue.id)
+          setListNote(null)
+        } else {
+          setOpenedId(null)
+          if (requested && isFncBoardVenueId(requested)) {
+            setVenueId(requested)
+            setListNote(poolListNote(requested, pick.reason))
+          } else if (pick.reason === 'ambiguous' || pick.reason === 'mixed') {
+            setVenueId(null)
+            setListNote(poolListNote('', pick.reason))
+          } else {
+            setVenueId(requested || null)
+            setListNote(null)
+          }
+        }
       }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Sync failed')
       setSnap(null)
+      setOpenedId(null)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    setVenueId(friday ? null : (initialVenueId ?? null))
-    void refresh(friday || !initialVenueId)
+    const nextVenue = friday ? null : (initialVenueId ?? null)
+    setVenueId(nextVenue)
+    setOpenedId(null)
+    setListNote(null)
+    void refresh(friday || !nextVenue, nextVenue)
     // friday switches the list (FNC pools vs Friday comp). initialVenueId is the pool to reopen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [friday])
@@ -95,14 +129,15 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
 
   const venue: LiveVenue | VenueNight | null = useMemo(() => {
     if (demoMode) return FNC_VENUES.find((v) => v.id === venueId) ?? null
-    const exact = liveVenues.find((v) => v.id === venueId)
-    if (exact || !venueId) return exact ?? null
-    // A pool id from the landing page (e.g. lismore) vs a longer RevSport slug
-    // (lismore-memorial-baths). Only use the name match when exactly one venue fits;
-    // two pools in one town must be picked by hand, never guessed.
-    const byName = liveVenues.filter((v) => boardIdForMatch({ venue: v.name }) === venueId)
-    return byName.length === 1 ? byName[0] : null
-  }, [demoMode, venueId, liveVenues])
+    // A card tap, or an auto-open that already passed Option A.
+    if (openedId) {
+      const opened = liveVenues.find((v) => v.id === openedId)
+      if (opened) return opened
+    }
+    if (!venueId) return null
+    // ?venue=alstonville (or a longer slug). Open only when one venue name fits.
+    return pickVenueForPool(liveVenues, { requestedPoolId: venueId, allowSoleVenue: false }).venue
+  }, [demoMode, venueId, openedId, liveVenues])
 
   const eventLabel = demoMode
     ? 'Demo fixtures (offline)'
@@ -111,7 +146,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
   async function startLiveGame(game: LiveGame) {
     if (!venue) return
     setStartingId(game.id)
-    setStartMsg(friday ? 'Loading teams…' : 'Loading teams and venue from FNC…')
+    setStartMsg(friday ? 'Loading teams…' : `Loading teams and venue from ${game.source || 'FNC'}…`)
     const { match, error, warnings } = await loadLiveMatch(game)
     setStartingId(null)
     if (!match || error) {
@@ -165,7 +200,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
             {!demoMode && snap && !friday ? (
               <>
                 <br />
-                Live from FNC · {snap.games.length} game{snap.games.length === 1 ? '' : 's'}
+                Live from {liveSourceLabel(snap.games)} · {snap.games.length} game{snap.games.length === 1 ? '' : 's'}
               </>
             ) : null}
             {friday && snap && !loadError ? (
@@ -180,8 +215,8 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
 
       {loading ? (
         <section className="card venue-pick">
-          <h2>{friday ? 'Loading Friday games…' : 'Loading FNC fixtures…'}</h2>
-          <p className="muted">{friday ? 'Pulling tonight’s games.' : 'Pulling competitions, games and venues from fncwaterpolo.org.au'}</p>
+          <h2>{friday ? 'Loading Friday games…' : 'Loading fixtures…'}</h2>
+          <p className="muted">{friday ? 'Pulling tonight’s games.' : 'Pulling competitions, games and venues from FNC and AJWP.'}</p>
         </section>
       ) : null}
 
@@ -205,6 +240,8 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
                 onClick={() => {
                   setUseDemo(true)
                   setVenueId(null)
+                  setOpenedId(null)
+                  setListNote(null)
                 }}
               >
                 Use demo venues
@@ -220,19 +257,24 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
       {!loading && (demoMode || liveVenues.length > 0) && !venue ? (
         <section className="card venue-pick">
           <h2>{friday ? 'Which pool on Friday?' : 'Tonight at which pool?'}</h2>
-          {initialVenueId && venueId === initialVenueId && !demoMode ? (
-            <p className="muted">
-              No games found for {initialVenueId.charAt(0).toUpperCase() + initialVenueId.slice(1)} in the next few days. Pick a pool below.
-            </p>
-          ) : null}
+          {listNote && !demoMode ? <p className="muted">{listNote}</p> : null}
           {demoMode ? <p className="muted">Demo data — not live FNC.</p> : null}
-          {friday && snap?.notice ? <p className="muted">{snap.notice}</p> : null}
+          {snap?.notice && !demoMode ? <p className="muted" role="status">{snap.notice}</p> : null}
           {snap?.warnings?.length && !demoMode && !friday ? (
             <p className="muted">{snap.warnings.slice(0, 2).join(' ')}</p>
           ) : null}
           <div className="venue-grid">
             {venueList.map((v) => (
-              <button key={v.id} type="button" className="venue-card" onClick={() => setVenueId(v.id)}>
+              <button
+                key={v.id}
+                type="button"
+                className="venue-card"
+                onClick={() => {
+                  setListNote(null)
+                  setOpenedId(v.id)
+                  setVenueId(v.id)
+                }}
+              >
                 <strong>{v.shortName}</strong>
                 <span className="muted">{v.name}</span>
                 <span className="venue-count">{v.games.length} games</span>
@@ -269,7 +311,11 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
               className="btn small"
               onClick={() => {
                 if (friday && liveVenues.length <= 1) onLeaveNight?.()
-                else setVenueId(null)
+                else {
+                  setOpenedId(null)
+                  setVenueId(null)
+                  setListNote(null)
+                }
               }}
             >
               {friday && liveVenues.length <= 1 ? '← Pools' : '← Venues'}
@@ -279,7 +325,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
               <p className="muted">{venue.name}</p>
             </div>
           </div>
-          {friday && snap?.notice ? <p className="muted">{snap.notice}</p> : null}
+          {snap?.notice && !demoMode ? <p className="muted" role="status">{snap.notice}</p> : null}
           {startMsg ? <p className="muted">{startMsg}</p> : null}
           <div className="game-night-list">
             {demoMode
@@ -324,7 +370,7 @@ export function VenueNightScreen({ onStart, onAdvanced, initialVenueId, night = 
                           {g.home} <span className="vs">vs</span> {g.away}
                         </strong>
                         <span className="muted">
-                          {[g.grade, g.round, g.date ? formatNightDate(g.date) : '']
+                          {[g.source === 'AJWP' ? 'AJWP' : '', g.grade, g.round, g.date ? formatNightDate(g.date) : '']
                             .filter(Boolean)
                             .join(' · ')}
                         </span>

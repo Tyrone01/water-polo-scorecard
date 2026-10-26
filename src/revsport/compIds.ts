@@ -23,12 +23,14 @@ export const COMP_RULES: Partial<Record<RevSportClubId, CompRule>> = {
 }
 
 /**
- * AJWP Friday night comp button only (by competition id). Not applied to manual
- * AJWP imports, and not mixed into the FNC pool lists.
- * 28040 A grade, 28041 B/C Grade.
+ * AJWP competitions 28040 (A grade) and 28041 (B/C Grade), by id only.
+ * The Friday button uses AJWP_FRIDAY_RULE. The FNC pool list and TV use
+ * AJWP_VENUE_NIGHT_RULE (the same ids). Manual AJWP imports in Setup are not
+ * affected — COMP_RULES has no AJWP entry, so Setup still loads every AJWP comp.
  */
 export const AJWP_FRIDAY_COMP_IDS = ['28040', '28041'] as const
 export const AJWP_FRIDAY_RULE: CompRule = { allow: AJWP_FRIDAY_COMP_IDS }
+export const AJWP_VENUE_NIGHT_RULE: CompRule = { allow: AJWP_FRIDAY_COMP_IDS }
 
 export type CompDecision = 'load' | 'excluded' | 'not-listed'
 
