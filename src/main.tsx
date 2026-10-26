@@ -16,8 +16,9 @@ const boardMatch = path.match(/^\/board(?:\/([^/]+))?$/)
 /** Where scorers go to pick a pool and that night's games (the scorer app, not a TV board). */
 const SCORE_PATH = '/score'
 /**
- * On the TV host, scorers go to the main scorer address so saved games and Google
- * sign-in stay in one place. A build can override it with VITE_SCORER_ORIGIN.
+ * AJWP Friday night on the TV host still opens the main scorer address so those
+ * games and Google sign-in stay in one place. A build can override it with
+ * VITE_SCORER_ORIGIN. Score a game stays on this host at SCORE_PATH.
  */
 const envScorer = (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_SCORER_ORIGIN
 const SCORER_ORIGIN = (envScorer ?? 'https://water-polo-scorecard.tyrone-mcgillick.workers.dev').replace(/\/$/, '')
@@ -54,7 +55,7 @@ function BoardIndex() {
     setVenueIdState(id)
   }
   const label = venueId ? VENUE_LABELS[venueId] ?? venueId : ''
-  const scoreHref = venueId ? `${onPublicBoardHost ? (SCORER_ORIGIN ? `${SCORER_ORIGIN}/` : SCORE_PATH) : '/'}?venue=${encodeURIComponent(venueId)}` : '#'
+  const scoreHref = venueId ? `${onPublicBoardHost ? SCORE_PATH : '/'}?venue=${encodeURIComponent(venueId)}` : '#'
   const boardHref = venueId ? (onPublicBoardHost ? `/${venueId}` : `/board/${venueId}`) : '#'
   const ajwpHref = onPublicBoardHost && SCORER_ORIGIN ? `${SCORER_ORIGIN}/?night=${AJWP_FRIDAY_NIGHT}` : `/?night=${AJWP_FRIDAY_NIGHT}`
   return (
